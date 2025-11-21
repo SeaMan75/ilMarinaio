@@ -24,18 +24,22 @@ document.addEventListener("DOMContentLoaded", () => {
 
   toggleBtn.addEventListener("click", toggleTheme);
   applyAutoTheme();
-});
 
-// --- Игра "Змейка" ---
+  // --- ИГРА ЗМЕЙКА ---
+  const gameSection = document.getElementById('gameSection');
+  if (!gameSection) return; // Если секция игры не найдена — выходим
 
-// Инициализация элементов игры
-const canvas = document.getElementById('gameCanvas');
-if (canvas) { // Проверяем, существует ли canvas
-  const ctx = canvas.getContext('2d');
+  const canvas = document.getElementById('gameCanvas');
   const scoreElement = document.getElementById('score');
   const startBtn = document.getElementById('startBtn');
   const pauseBtn = document.getElementById('pauseBtn');
 
+  if (!canvas || !scoreElement || !startBtn || !pauseBtn) {
+    console.warn('Элементы игры не найдены!');
+    return;
+  }
+
+  const ctx = canvas.getContext('2d');
   const gridSize = 15;
   const tileCount = canvas.width / gridSize;
 
@@ -60,6 +64,7 @@ if (canvas) { // Проверяем, существует ли canvas
     scoreElement.textContent = score;
     randomizeApple();
     randomizeGrenade();
+    draw(); // Первый рисунок
   }
 
   function randomizeApple() {
@@ -131,14 +136,23 @@ if (canvas) { // Проверяем, существует ли canvas
     }
   }
 
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawSnake();
+    drawApple();
+    drawGrenade();
+  }
+
   function moveSnake() {
     const head = {x: snake[0].x + dx, y: snake[0].y + dy};
 
+    // Проверка на границы
     if (head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount) {
       gameOver();
       return;
     }
 
+    // Проверка на самопересечение
     if (isOnSnake(head)) {
       gameOver();
       return;
@@ -146,6 +160,7 @@ if (canvas) { // Проверяем, существует ли canvas
 
     snake.unshift(head);
 
+    // Яблоко
     if (head.x === apple.x && head.y === apple.y) {
       score++;
       scoreElement.textContent = score;
@@ -154,6 +169,7 @@ if (canvas) { // Проверяем, существует ли canvas
       snake.pop();
     }
 
+    // Граната
     if (head.x === grenade.x && head.y === grenade.y) {
       if (snake.length > 3) {
         snake.pop();
@@ -162,18 +178,12 @@ if (canvas) { // Проверяем, существует ли canvas
       }
       randomizeGrenade();
     }
-  }
 
-  function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    drawSnake();
-    drawApple();
-    drawGrenade();
+    draw();
   }
 
   function gameStep() {
     moveSnake();
-    draw();
   }
 
   function gameOver() {
@@ -195,7 +205,9 @@ if (canvas) { // Проверяем, существует ли canvas
     gameRunning = false;
   }
 
+  // Управление стрелками
   document.addEventListener('keydown', (e) => {
+    if (!gameRunning) return; // Только если игра активна
     if (e.key === 'ArrowUp' && dy === 0) {
       dx = 0;
       dy = -1;
@@ -211,6 +223,10 @@ if (canvas) { // Проверяем, существует ли canvas
     }
   });
 
-  startBtn?.addEventListener('click', startGame);
-  pauseBtn?.addEventListener('click', pauseGame);
-}
+  // Привязка кнопок
+  startBtn.addEventListener('click', startGame);
+  pauseBtn.addEventListener('click', pauseGame);
+
+  // Инициализация при загрузке страницы
+  initGame();
+});
