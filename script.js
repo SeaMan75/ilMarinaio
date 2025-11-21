@@ -96,45 +96,90 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  function drawApple() {
-    ctx.fillStyle = '#FF5722';
+ function drawApple() {
+  // Позиция и размер
+  const x = apple.x * gridSize;
+  const y = apple.y * gridSize;
+  const size = gridSize;
+
+  // Тело яблока (красный градиент)
+  const gradient = ctx.createRadialGradient(
+    x + size / 2, y + size / 2, 1,
+    x + size / 2, y + size / 2, size / 2
+  );
+  gradient.addColorStop(0, "#FF6347"); // Светлый красный
+  gradient.addColorStop(1, "#CC0000"); // Темный красный
+
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(x + size / 2, y + size / 2, size / 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Блик
+  ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
+  ctx.beginPath();
+  ctx.arc(x + size * 0.3, y + size * 0.3, size * 0.15, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Листик
+  ctx.fillStyle = "#32CD32";
+  ctx.beginPath();
+  ctx.ellipse(x + size * 0.65, y + size * 0.25, size * 0.15, size * 0.1, Math.PI / 4, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Черенок
+  ctx.strokeStyle = "#8B4513";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(x + size * 0.6, y + size * 0.15);
+  ctx.lineTo(x + size * 0.7, y);
+  ctx.stroke();
+}
+
+function drawGrenade() {
+  // Позиция и размер
+  const x = grenade.x * gridSize;
+  const y = grenade.y * gridSize;
+  const size = gridSize;
+
+  // Тело гранаты (гранатовый цвет)
+  const gradient = ctx.createRadialGradient(
+    x + size / 2, y + size / 2, 1,
+    x + size / 2, y + size / 2, size / 2
+  );
+  gradient.addColorStop(0, "#A0522D"); // Светлый коричневый
+  gradient.addColorStop(1, "#5D4037"); // Темный коричневый
+
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(x + size / 2, y + size / 2, size / 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Рисуем "иголки"
+  ctx.strokeStyle = "#5D4037";
+  ctx.lineWidth = 1.5;
+  for (let i = 0; i < 8; i++) {
+    const angle = (i / 8) * Math.PI * 2;
+    const startX = x + size / 2 + Math.cos(angle) * (size / 3);
+    const startY = y + size / 2 + Math.sin(angle) * (size / 3);
+    const endX = x + size / 2 + Math.cos(angle) * (size / 2);
+    const endY = y + size / 2 + Math.sin(angle) * (size / 2);
     ctx.beginPath();
-    ctx.arc(
-      apple.x * gridSize + gridSize / 2,
-      apple.y * gridSize + gridSize / 2,
-      gridSize / 2,
-      0,
-      Math.PI * 2
-    );
-    ctx.fill();
+    ctx.moveTo(startX, startY);
+    ctx.lineTo(endX, endY);
+    ctx.stroke();
   }
 
-  function drawGrenade() {
-    ctx.fillStyle = '#795548';
-    ctx.beginPath();
-    ctx.arc(
-      grenade.x * gridSize + gridSize / 2,
-      grenade.y * gridSize + gridSize / 2,
-      gridSize / 2,
-      0,
-      Math.PI * 2
-    );
-    ctx.fill();
-
-    ctx.strokeStyle = '#5D4037';
-    ctx.lineWidth = 1.5;
-    for (let i = 0; i < 6; i++) {
-      const angle = (i / 6) * Math.PI * 2;
-      const startX = grenade.x * gridSize + gridSize / 2 + Math.cos(angle) * (gridSize / 3);
-      const startY = grenade.y * gridSize + gridSize / 2 + Math.sin(angle) * (gridSize / 3);
-      const endX = grenade.x * gridSize + gridSize / 2 + Math.cos(angle) * (gridSize / 2);
-      const endY = grenade.y * gridSize + gridSize / 2 + Math.sin(angle) * (gridSize / 2);
-      ctx.beginPath();
-      ctx.moveTo(startX, startY);
-      ctx.lineTo(endX, endY);
-      ctx.stroke();
-    }
-  }
+  // Линии на гранате
+  ctx.strokeStyle = "#4E342E";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(x + size / 2, y + size / 2, size / 2 * 0.8, 0, Math.PI);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(x + size / 2, y + size / 2, size / 2 * 0.8, Math.PI, Math.PI * 2);
+  ctx.stroke();
+}
 
   function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
