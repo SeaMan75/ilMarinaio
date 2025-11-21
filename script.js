@@ -68,20 +68,21 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function randomizeApple() {
-    apple = {
-      x: Math.floor(Math.random() * tileCount),
-      y: Math.floor(Math.random() * tileCount)
-    };
-  }
+  apple = {
+    x: Math.floor(Math.random() * (tileCount - 2)) + 1,
+    y: Math.floor(Math.random() * (tileCount - 2)) + 1
+  };
+}
 
-  function randomizeGrenade() {
-    do {
-      grenade = {
-        x: Math.floor(Math.random() * tileCount),
-        y: Math.floor(Math.random() * tileCount)
-      };
-    } while (isOnSnake(grenade));
-  }
+function randomizeGrenade() {
+  do {
+    grenade = {
+      x: Math.floor(Math.random() * (tileCount - 2)) + 1,
+      y: Math.floor(Math.random() * (tileCount - 2)) + 1
+    };
+  } while (isOnSnake(grenade));
+}
+
 
   function isOnSnake(pos) {
     return snake.some(segment => segment.x === pos.x && segment.y === pos.y);
@@ -206,10 +207,14 @@ function drawGrenade() {
     snake.unshift(head);
 
 // Яблоко
+let ateApple = false;
+
 if (head.x === apple.x && head.y === apple.y) {
   score++;
   scoreElement.textContent = score;
   randomizeApple();
+  ateApple = true;
+}
 
   // Добавим ещё один сегмент (удвоим голову)
   const extra = { x: head.x + dx, y: head.y + dy };
@@ -219,15 +224,16 @@ if (head.x === apple.x && head.y === apple.y) {
  // Граната
 if (head.x === grenade.x && head.y === grenade.y) {
   if (snake.length > 3) {
-    // Удалим два сегмента хвоста
-    snake.pop();
     snake.pop();
     score = Math.max(0, score - 1);
     scoreElement.textContent = score;
   }
   randomizeGrenade();
 }
-
+// Удаляем хвост, если не съели яблоко
+if (!ateApple) {
+  snake.pop();
+}
     draw();
   }
 
