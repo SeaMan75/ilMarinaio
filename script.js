@@ -194,48 +194,46 @@ function drawGrenade() {
 
     // Проверка на границы
     if (head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount) {
-      gameOver();
-      return;
+        gameOver();
+        return;
     }
 
     // Проверка на самопересечение
     if (isOnSnake(head)) {
-      gameOver();
-      return;
+        gameOver();
+        return;
     }
 
+    let ateApple = false;
+
+    // Проверка на яблоко
+    if (head.x === apple.x && head.y === apple.y) {
+        score++;
+        scoreElement.textContent = score;
+        randomizeApple();
+        ateApple = true;
+    }
+
+    // Проверка на гранату
+    if (head.x === grenade.x && head.y === grenade.y) {
+        if (snake.length > 3) {
+            snake.pop(); // Удаляем один сегмент
+            score = Math.max(0, score - 1);
+            scoreElement.textContent = score;
+        }
+        randomizeGrenade();
+    }
+
+    // Добавляем новую голову
     snake.unshift(head);
 
-// Яблоко
-let ateApple = false;
+    // Удаляем хвост, если не съели яблоко
+    if (!ateApple) {
+        snake.pop();
+    }
 
-if (head.x === apple.x && head.y === apple.y) {
-  score++;
-  scoreElement.textContent = score;
-  randomizeApple();
-  ateApple = true;
-}
-
-  // Добавим ещё один сегмент (удвоим голову)
-  const extra = { x: head.x + dx, y: head.y + dy };
-  snake.unshift(extra);
-}
-
- // Граната
-if (head.x === grenade.x && head.y === grenade.y) {
-  if (snake.length > 3) {
-    snake.pop();
-    score = Math.max(0, score - 1);
-    scoreElement.textContent = score;
-  }
-  randomizeGrenade();
-}
-// Удаляем хвост, если не съели яблоко
-if (!ateApple) {
-  snake.pop();
-}
     draw();
-  }
+}
 
   function gameStep() {
     moveSnake();
