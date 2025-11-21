@@ -103,3 +103,57 @@ a:hover {
     align-items: center;
   }
 }
+
+/* Стили для игры */
+.game-container {
+  background-color: #f9f9f9;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 15px;
+  margin-top: 20px;
+  max-width: 400px;
+  text-align: center;
+}
+
+body.dark .game-container {
+  background-color: #2c2c2c;
+  border: 1px solid #444;
+}
+
+.game-container h3 {
+  margin-top: 0;
+  color: var(--text);
+}
+
+#gameCanvas {
+  border: 2px solid #333;
+  background-color: #111;
+  margin: 10px 0;
+}
+
+.game-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.game-controls .score {
+  font-size: 1.1em;
+  font-weight: bold;
+}
+
+.game-controls button {
+  padding: 6px 12px;
+  font-size: 0.9em;
+  cursor: pointer;
+  background-color: var(--link);
+  color: white;
+  border: none;
+  border-radius: 4px;
+}
+
+.game-controls button:hover {
+  opacity: 0.9;
+}
