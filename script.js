@@ -1,3 +1,4 @@
+// Version 1.0.0.1
 document.addEventListener("DOMContentLoaded", () => {
   const toggleBtn = document.getElementById("themeToggle");
 
