@@ -160,24 +160,28 @@ document.addEventListener("DOMContentLoaded", () => {
 
     snake.unshift(head);
 
-    // Яблоко
-    if (head.x === apple.x && head.y === apple.y) {
-      score++;
-      scoreElement.textContent = score;
-      randomizeApple();
-    } else {
-      snake.pop();
-    }
+// Яблоко
+if (head.x === apple.x && head.y === apple.y) {
+  score++;
+  scoreElement.textContent = score;
+  randomizeApple();
 
-    // Граната
-    if (head.x === grenade.x && head.y === grenade.y) {
-      if (snake.length > 3) {
-        snake.pop();
-        score = Math.max(0, score - 1);
-        scoreElement.textContent = score;
-      }
-      randomizeGrenade();
-    }
+  // Добавим ещё один сегмент (удвоим голову)
+  const extra = { x: head.x + dx, y: head.y + dy };
+  snake.unshift(extra);
+}
+
+ // Граната
+if (head.x === grenade.x && head.y === grenade.y) {
+  if (snake.length > 3) {
+    // Удалим два сегмента хвоста
+    snake.pop();
+    snake.pop();
+    score = Math.max(0, score - 1);
+    scoreElement.textContent = score;
+  }
+  randomizeGrenade();
+}
 
     draw();
   }
