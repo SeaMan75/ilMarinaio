@@ -53,6 +53,33 @@ document.addEventListener("DOMContentLoaded", () => {
   let gameRunning = false;
   let gameLoop;
 
+  // --- КНОПКИ УПРАВЛЕНИЯ НА ЭКРАНЕ ---
+const upBtn = document.getElementById('upBtn');
+const downBtn = document.getElementById('downBtn');
+const leftBtn = document.getElementById('leftBtn');
+const rightBtn = document.getElementById('rightBtn');
+
+function tryChangeDirection(newDx, newDy) {
+  // Разрешаем смену направления, только если игра идёт
+  // и не пытаемся пойти прямо в хвост (180° поворот)
+  if (!gameRunning) return;
+  if (newDx !== 0 && dx === 0) {
+    dx = newDx;
+    dy = newDy;
+  } else if (newDy !== 0 && dy === 0) {
+    dx = newDx;
+    dy = newDy;
+  }
+}
+
+// Подключаем кнопки
+if (upBtn) upBtn.addEventListener('click', () => tryChangeDirection(0, -1));
+if (downBtn) downBtn.addEventListener('click', () => tryChangeDirection(0, 1));
+if (leftBtn) leftBtn.addEventListener('click', () => tryChangeDirection(-1, 0));
+if (rightBtn) rightBtn.addEventListener('click', () => tryChangeDirection(1, 0));
+
+  
+
   function initGame() {
     snake = [
       {x: 10, y: 10},
