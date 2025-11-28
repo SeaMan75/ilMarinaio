@@ -216,3 +216,20 @@ body.dark .game-container {
     display: none;
   }
 }
+
+.raised--hover {
+  transition: box-shadow 0.3s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+.raised--hover:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+.raised--deep {
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+}
+
+.raised {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border-radius: 8px; /* опционально — скругление углов */
+  background: white;  /* опционально — фон, чтобы тень была заметна */
+}
