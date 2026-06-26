@@ -59,6 +59,31 @@
       border-top: 5px solid var(--primary-color);
     }
 
+    /* --- НОВАЯ КНОПКА "НА ГЛАВНУЮ" --- */
+    .home-btn {
+      display: inline-block;
+      margin-bottom: 20px;
+      padding: 10px 24px;
+      font-size: 14px;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--primary-color);
+      border: 2px solid var(--primary-color);
+      border-radius: 30px;
+      text-decoration: none;
+      transition: all 0.3s ease;
+      background: transparent;
+    }
+
+    .home-btn:hover {
+      background-color: var(--primary-color);
+      color: #fff;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 10px rgba(44, 62, 80, 0.3);
+    }
+    /* -------------------------------- */
+
     .profile-name {
       font-family: 'Merriweather', serif;
       font-size: 28px;
@@ -224,8 +249,12 @@
   
   <!-- Левая колонка (Фиксированная) -->
   <aside class="sidebar">
+    
+    <!-- Кнопка на главную -->
+    <a href="index.html" class="home-btn">🏠 На главную</a>
+
     <h1 class="profile-name">Николай</h1>
-    <div class="profile-role">Senior Software Developer</div>
+    <div class="profile-role">Software Developer</div>
 
     <ul class="contact-list">
       <li>
@@ -302,9 +331,11 @@
       <p>
         <span class="tag">Git / GitHub / Bitbucket</span>
         <span class="tag">Linux</span>
-        <span class="tag">Windows Server</span>
+        <span class="tag">Windows</span>
+        <span class="tag">Jira</span>
         <span class="tag">Redmine</span>
         <span class="tag">Docker</span>
+        <span class="tag"> и др...</span>        
       </p>
     </section>
 
