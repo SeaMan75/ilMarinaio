@@ -5,6 +5,75 @@
   <title>Главная</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="style.css">
+  
+  <!-- Стили для огнедышащей ссылки -->
+  <style>
+    .fire-link-container {
+      text-align: center;
+      margin: 40px 0;
+      position: relative;
+    }
+
+    .fire-link {
+      font-size: 24px;
+      font-weight: bold;
+      text-decoration: none;
+      color: #ffcc00; /* Желтый центр огня */
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      position: relative;
+      display: inline-block;
+      transition: transform 0.2s;
+      
+      /* Магия огня через тени текста */
+      text-shadow: 
+        0 0 4px #fff,
+        0 -5px 10px #ffcc00,
+        2px -10px 15px #ff6600,
+        -2px -15px 20px #ff0000;
+      
+      animation: burn 1.5s infinite alternate;
+    }
+
+    .fire-link:hover {
+      transform: scale(1.1);
+      color: #fff;
+    }
+
+    @keyframes burn {
+      0% {
+        text-shadow: 
+          0 0 4px #fff,
+          0 -5px 10px #ffcc00,
+          2px -10px 15px #ff6600,
+          -2px -15px 20px #ff0000;
+      }
+      100% {
+        text-shadow: 
+          0 0 2px #fff,
+          0 -7px 12px #ffcc00,
+          -2px -12px 18px #ff6600,
+          2px -18px 25px #ff0000;
+      }
+    }
+
+    /* Стили для искр */
+    .spark {
+      position: absolute;
+      width: 4px;
+      height: 4px;
+      background: #ffcc00;
+      border-radius: 50%;
+      pointer-events: none;
+      opacity: 0;
+    }
+
+    @keyframes flySpark {
+      0% { transform: translate(0, 0) scale(1); opacity: 1; background: #fff; }
+      100% { transform: translate(var(--tx), var(--ty)) scale(0); opacity: 0; background: #ff0000; }
+    }
+  </style>
+
   <script src="script.js" defer></script>
 </head>
 <body>
@@ -12,6 +81,7 @@
     <h1>Добро пожаловать на страничку!</h1>
     <button id="themeToggle">🌙</button>
   </header>
+
 <div class="container">
     <nav class="sidebar">
       <ul>
@@ -19,6 +89,7 @@
         <li><a href="resume.html">Резюме</a></li>
       </ul>
     </nav>
+    
    <section id="projects" class="raised">
         <h2>Проекты</h2>
         <!-- Игра "Змейка" -->
@@ -26,23 +97,86 @@
           <h3>Игра: Змейка</h3>
           <canvas id="gameCanvas" width="300" height="300"></canvas>
           <div class="game-controls">
-</div>
-<div class="touch-controls">
-  <button id="upBtn">↑</button>
-  <div>
-    <button id="leftBtn">←</button>
-    <button id="rightBtn">→</button>
-  </div>
-  <button id="downBtn">↓</button>
-</div>
-          <div class="game-controls">
-            <div class="score">Счёт: <span id="score">0</span></div>
-            <button id="startBtn">Начать</button>
-            <button id="pauseBtn">Пауза</button>
+            <div class="touch-controls">
+              <button id="upBtn">↑</button>
+              <div>
+                <button id="leftBtn">←</button>
+                <button id="rightBtn">→</button>
+              </div>
+              <button id="downBtn">↓</button>
+            </div>
+            <div class="game-controls">
+              <div class="score">Счёт: <span id="score">0</span></div>
+              <button id="startBtn">Начать</button>
+              <button id="pauseBtn">Пауза</button>
+            </div>
           </div>
           <p>Яблоко (+) увеличивает, граната (-) уменьшает</p>
         </div>
-      </section>
+   </section>
+
+  <hr>
+  
+  <!-- ОГНЕДЫШАЩАЯ ССЫЛКА -->
+  <div class="fire-link-container" id="fireContainer">
+    <a href="hanoy_tower.html" class="fire-link">🔥 Ханойские Башни 🔥</a>
+  </div>
+
+</div>
+
+<!-- Скрипт для создания искр -->
+<script>
+  const fireLink = document.querySelector('.fire-link');
+  const container = document.getElementById('fireContainer');
+
+  fireLink.addEventListener('mouseover', () => {
+    // Создаем много искр при наведении
+    for(let i=0; i<10; i++) {
+      createSpark();
+    }
+  });
+
+  fireLink.addEventListener('click', (e) => {
+    // Взрыв искр при клике
+    for(let i=0; i<20; i++) {
+      createSpark(true);
+    }
+  });
+
+  function createSpark(isExplosion = false) {
+    const spark = document.createElement('div');
+    spark.classList.add('spark');
+    
+    // Случайная позиция старта около центра ссылки
+    const rect = fireLink.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    
+    // Позиционируем относительно контейнера
+    const startX = (rect.left - containerRect.left) + Math.random() * rect.width;
+    const startY = (rect.top - containerRect.top) + Math.random() * rect.height;
+    
+    spark.style.left = startX + 'px';
+    spark.style.top = startY + 'px';
+    
+    // Направление полета (вверх и в стороны)
+    const tx = (Math.random() - 0.5) * 100 + 'px';
+    const ty = -(Math.random() * 100 + 50) + 'px'; // Только вверх
+    
+    spark.style.setProperty('--tx', tx);
+    spark.style.setProperty('--ty', ty);
+    
+    // Скорость анимации
+    const duration = 0.5 + Math.random() * 0.5;
+    spark.style.animation = `flySpark ${duration}s ease-out forwards`;
+    
+    container.appendChild(spark);
+    
+    // Удаляем элемент после анимации
+    setTimeout(() => {
+      spark.remove();
+    }, duration * 1000);
+  }
+</script>
+
 </body>
 </html>
-
