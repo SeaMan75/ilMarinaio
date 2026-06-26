@@ -17,12 +17,15 @@
     box-shadow: 0 4px 15px rgba(0,0,0,0.08);
     pointer-events: auto;
     border: 1px solid rgba(255,255,255,0.5);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
   }
 
   #status { font-size: 22px; font-weight: bold; text-shadow: 0 1px 2px rgba(255,255,255,0.8); color: #2c3e50; transition: color 0.3s; min-height: 30px;}
   #moves { font-size: 16px; color: #5a3e28; font-weight: 600; margin-top: 5px; }
   
-  .btn-group { display: flex; gap: 10px; justify-content: center; margin-top: 10px; }
+  .btn-group { display: flex; gap: 10px; justify-content: center; margin-top: 10px; flex-wrap: wrap; }
   
   button { 
     padding: 8px 20px; font-size: 15px; font-weight: bold;
@@ -33,6 +36,29 @@
   button:hover:not(:disabled) { background: #fdf6ee; transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
   button:active:not(:disabled) { transform: translateY(0); }
   button:disabled { opacity: 0.5; cursor: not-allowed; filter: grayscale(1); }
+
+  /* Стили для кнопки "На Главную" */
+  .home-btn {
+    text-decoration: none;
+    padding: 8px 20px;
+    font-size: 15px;
+    font-weight: bold;
+    background: #2c3e50; /* Темно-синий цвет как в резюме */
+    border: 2px solid #2c3e50;
+    color: #fff;
+    border-radius: 6px;
+    transition: all 0.2s;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    display: inline-block;
+  }
+
+  .home-btn:hover {
+    background: #34495e;
+    border-color: #34495e;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    color: #fff;
+  }
 
   /* Controls for disc count positioned absolutely */
   #disc-controls {
@@ -58,6 +84,8 @@
     <div id="status">Кликни на стержень или диск</div>
     <div id="moves">Ходов: 0 | Мин: 0</div>
     <div class="btn-group">
+      <!-- Кнопка На Главную -->
+      <a href="index.html" class="home-btn">🏠 На главную</a>
       <button id="demoBtn" onclick="toggleDemo()">🤖 Демо</button>
       <button id="resetBtn" onclick="resetGame()">🔄 Сброс</button>
     </div>
