@@ -4,67 +4,338 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Резюме — Николай</title>
-  <link rel="stylesheet" href="style.css">
-  <script src="script.js" defer></script>
+  
+  <!-- Подключаем красивые шрифты -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@300;700&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --primary-color: #2c3e50; /* Темно-синий солидный */
+      --accent-color: #d4af37; /* Золотой для акцентов */
+      --bg-color: #f4f6f8;
+      --text-color: #333;
+      --sidebar-bg: #ffffff;
+      --card-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    }
+
+    * { box-sizing: border-box; }
+
+    html {
+      scroll-behavior: smooth; /* Плавный скроллинг */
+    }
+
+    body {
+      margin: 0;
+      font-family: 'Roboto', sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      line-height: 1.6;
+    }
+
+    /* Макет */
+    .layout {
+      display: flex;
+      max-width: 1200px;
+      margin: 40px auto;
+      gap: 30px;
+      padding: 0 20px;
+    }
+
+    /* Боковая панель (Контакты) - Фиксированная */
+    .sidebar {
+      width: 300px;
+      flex-shrink: 0;
+      position: sticky; /* Липкий блок */
+      top: 40px; /* Отступ сверху при прокрутке */
+      height: fit-content;
+      
+      background: var(--sidebar-bg);
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: var(--card-shadow);
+      text-align: center;
+      border-top: 5px solid var(--primary-color);
+    }
+
+    .profile-name {
+      font-family: 'Merriweather', serif;
+      font-size: 28px;
+      color: var(--primary-color);
+      margin-bottom: 10px;
+      margin-top: 0;
+    }
+
+    .profile-role {
+      color: #7f8c8d;
+      font-size: 16px;
+      margin-bottom: 25px;
+      font-weight: 300;
+    }
+
+    .contact-list {
+      list-style: none;
+      padding: 0;
+      text-align: left;
+      margin-bottom: 30px;
+    }
+
+    .contact-list li {
+      margin-bottom: 15px;
+      display: flex;
+      align-items: center;
+      font-size: 14px;
+    }
+
+    .contact-icon {
+      margin-right: 10px;
+      font-size: 18px;
+      width: 25px;
+      text-align: center;
+    }
+
+    .contact-list a {
+      color: var(--text-color);
+      text-decoration: none;
+      transition: color 0.3s;
+    }
+
+    .contact-list a:hover {
+      color: var(--accent-color);
+    }
+
+    .nav-menu {
+      list-style: none;
+      padding: 0;
+      border-top: 1px solid #eee;
+      padding-top: 20px;
+    }
+
+    .nav-menu li {
+      margin-bottom: 10px;
+    }
+
+    .nav-menu a {
+      text-decoration: none;
+      color: var(--primary-color);
+      font-weight: 500;
+      display: block;
+      padding: 8px 12px;
+      border-radius: 6px;
+      transition: all 0.2s;
+    }
+
+    .nav-menu a:hover {
+      background-color: var(--bg-color);
+      color: var(--accent-color);
+      transform: translateX(5px);
+    }
+
+    /* Основной контент */
+    .content {
+      flex-grow: 1;
+      background: transparent;
+    }
+
+    section {
+      background: white;
+      padding: 30px;
+      margin-bottom: 30px;
+      border-radius: 12px;
+      box-shadow: var(--card-shadow);
+    }
+
+    h1, h2, h3 {
+      font-family: 'Merriweather', serif;
+      color: var(--primary-color);
+    }
+
+    h2 {
+      border-bottom: 2px solid var(--accent-color);
+      padding-bottom: 10px;
+      margin-top: 0;
+      font-size: 24px;
+    }
+
+    h3 {
+      font-size: 18px;
+      margin-bottom: 10px;
+      color: #555;
+    }
+
+    ul {
+      padding-left: 20px;
+    }
+
+    li {
+      margin-bottom: 8px;
+    }
+
+    .tag {
+      display: inline-block;
+      background: #eef2f5;
+      padding: 4px 10px;
+      border-radius: 15px;
+      font-size: 13px;
+      margin-right: 5px;
+      margin-bottom: 5px;
+      color: var(--primary-color);
+      border: 1px solid #dde1e4;
+    }
+
+    .experience-text {
+      white-space: pre-line; /* Сохраняет переносы строк из HTML */
+    }
+
+    /* Адаптивность для мобильных */
+    @media (max-width: 900px) {
+      .layout {
+        flex-direction: column;
+        margin: 20px auto;
+      }
+
+      .sidebar {
+        width: 100%;
+        position: relative; /* Убираем липкость на мобильных */
+        top: 0;
+        margin-bottom: 20px;
+      }
+      
+      .nav-menu {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        justify-content: center;
+        border-top: none;
+      }
+      
+      .nav-menu a:hover {
+        transform: none;
+        background: var(--primary-color);
+        color: white;
+      }
+    }
+  </style>
 </head>
 <body>
-  <div class="container">
-    <nav class="sidebar">
-      <h2>Меню</h2>
-      <ul>
-        <li><a href="index.html">Главная</a></li>
-        <li><a href="index.html#projects">Проекты</a></li>
-        <li><a href="index.html#contact">Контакты</a></li>
+
+<div class="layout">
+  
+  <!-- Левая колонка (Фиксированная) -->
+  <aside class="sidebar">
+    <h1 class="profile-name">Николай</h1>
+    <div class="profile-role">Senior Software Developer</div>
+
+    <ul class="contact-list">
+      <li>
+        <span class="contact-icon">📍</span> Минск
+      </li>
+      <li>
+        <span class="contact-icon">📧</span> 
+        <a href="mailto:bgnick@mail.ru">bgnick@mail.ru</a>
+      </li>
+      <li>
+        <span class="contact-icon">✈️</span> 
+        <a href="https://t.me/SeaMan75" target="_blank">@SeaMan75</a>
+      </li>
+      <li>
+        <span class="contact-icon">📞</span> 
+        <a href="tel:+375295030771">+375 (29) 503-07-71</a>
+      </li>
+      <li>
+        <span class="contact-icon">💻</span> 
+        <a href="https://github.com/SeaMan75" target="_blank">GitHub</a>
+      </li>
+    </ul>
+
+    <nav>
+      <ul class="nav-menu">
+        <li><a href="#languages">Языки</a></li>
+        <li><a href="#skills">Навыки</a></li>
+        <li><a href="#experience">Опыт работы</a></li>
+        <li><a href="#additional">Дополнительно</a></li>
       </ul>
     </nav>
-    <main class="content">
-      <h1>Резюме</h1>
-      <p><strong>Имя:</strong> Николай</p>
-      <p><strong>Город:</strong> Минск</p>
-      <p><strong>Email:</strong> <a href="mailto:bgnick@mail.ru">bgnick@mail.ru</a></p>
-      <p><strong>Telegram:</strong> <a href="https://t.me/SeaMan75">@SeaMan75</a></p>
+  </aside>
 
+  <!-- Правая колонка (Контент) -->
+  <main class="content">
+    
+    <section id="languages">
       <h2>Языки</h2>
-      <ul>
-        <li>Русский — родной</li>
-        <li>Итальянский — A1</li>
-        <li>Английский — B2</li>
-        <li>Польский — A1</li>
-      </ul>
+      <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+        <div><strong>Русский</strong> — Родной</div>
+        <div><strong>Английский</strong> — B2 (Upper-Intermediate)</div>
+        <div><strong>Итальянский</strong> — A1 (Beginner)</div>
+        <div><strong>Польский</strong> — A1 (Beginner)</div>
+      </div>
+    </section>
 
-      <h2>Навыки</h2>
+    <section id="skills">
+      <h2>Профессиональные навыки</h2>
+      
       <h3>Разработка ПО</h3>
-      <ul>
-        <li><strong>Android:</strong> Java, Kotlin (Jetpack Compose, Room)</li>
-        <li><strong>Desktop:</strong> C# (.NET, WPF, WinForms, MVC, MVVM, Entity Framework), Delphi, C/C++, Assembler</li>
-        <li><strong>Python:</strong> Django, Flet, Tkinter, PyQt, Aiogram, SQLAlchemy</li>
-        <li><strong>Web:</strong> HTML, CSS, JavaScript, PHP</li>
-        <li><strong>Разное:</strong> Angular, React, node.js, TypeScript, Electron, Tauri, Rest API и др.</li>
-        <li><strong>Машинное обучение:</strong> TensorFlow, OpenCV</li>
-      </ul>
+      <p>
+        <span class="tag">C# (.NET, WPF, WinForms)</span>
+        <span class="tag">Python (Django, Flet, PyQt)</span>
+        <span class="tag">Java / Kotlin (Android)</span>
+        <span class="tag">C/C++</span>
+        <span class="tag">Assembler</span>
+        <span class="tag">Delphi</span>
+        <span class="tag">JavaScript / TypeScript</span>
+        <span class="tag">React / Angular / Node.js</span>
+        <span class="tag">TensorFlow / OpenCV</span>
+      </p>
 
       <h3>Базы данных</h3>
-      <ul>
-        <li>MySQL, Oracle, PostgreSQL, MS SQL Server, MongoDB, SQLite</li>
-      </ul>
+      <p>
+        <span class="tag">PostgreSQL</span>
+        <span class="tag">Oracle</span>
+        <span class="tag">MS SQL Server</span>
+        <span class="tag">MySQL</span>
+        <span class="tag">MongoDB</span>
+        <span class="tag">SQLite</span>
+      </p>
 
       <h3>Инструменты и ОС</h3>
-      <ul>
-        <li>Git, GitHub, Bitbucket, Redmine</li>
-        <li>Windows, Linux, Android</li>
-      </ul>
+      <p>
+        <span class="tag">Git / GitHub / Bitbucket</span>
+        <span class="tag">Linux</span>
+        <span class="tag">Windows Server</span>
+        <span class="tag">Redmine</span>
+        <span class="tag">Docker</span>
+      </p>
+    </section>
 
+    <section id="experience">
       <h2>Опыт работы</h2>
-      <p><strong>1998 – 2025</strong><br>
-         Разработка прикладного и системного программного обеспечения на C/C++, Assembler, C#, Python, Delphi, Java и др. с использованием Oracle, PostgreSQL, MySQl, SQLite.
-         Опыт разработки в предметных областях: медицина, ЖКХ, банковский сектор, складской учёт, терминалы сбора данных, платежные терминалы, вендинговые машины, мобильные приложения, веб-приложения, микроконтроллеры и др.</p>
-      <p> Мелкий ремонт вычислительной техники, монтаж ЛВС, настройка серверов, установка и настройка ОС, ПО и др. </p>
+      <p class="experience-text"><strong>1998 – 2025 | Full-stack & System Developer</strong>
+      
+      Разработка прикладного и системного программного обеспечения. Глубокая экспертиза в C/C++, Assembler, C#, Python, Java.
+      
+      <strong>Ключевые области применения:</strong>
+      • Медицина и здравоохранение
+      • ЖКХ и автоматизация диспетчерских
+      • Банковский сектор и финтех
+      • Складской учёт и логистика (ТСД)
+      • Вендинговые машины и платежные терминалы
+      • Встраиваемые системы и микроконтроллеры
+      
+      <strong>Инфраструктура:</strong>
+      Мелкий ремонт вычислительной техники, монтаж локальных вычислительных сетей (ЛВС), администрирование серверов Windows/Linux, настройка резервного копирования и безопасности.</p>
+    </section>
 
+    <section id="additional">
       <h2>Дополнительно</h2>
-      <p>Интересы: IT, иностранные языки, путешествия, столярка. <br>
-         GitHub: <a href="https://github.com/SeaMan75" target="_blank">github.com/SeaMan75</a></p>
-    </main>
-  </div>
+      <p>
+        <strong>Хобби:</strong> Столярное дело (Craftsmanship), изучение иностранных языков, путешествия.<br>
+        <strong>Личные качества:</strong> Аналитическое мышление, внимание к деталям, умение работать с legacy-кодом и сложной архитектурой.
+      </p>
+    </section>
+
+  </main>
+</div>
+
 </body>
 </html>
-
