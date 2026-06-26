@@ -59,7 +59,7 @@
       border-top: 5px solid var(--primary-color);
     }
 
-    /* --- НОВАЯ КНОПКА "НА ГЛАВНУЮ" --- */
+    /* Кнопка "На главную" */
     .home-btn {
       display: inline-block;
       margin-bottom: 20px;
@@ -82,7 +82,6 @@
       transform: translateY(-2px);
       box-shadow: 0 4px 10px rgba(44, 62, 80, 0.3);
     }
-    /* -------------------------------- */
 
     .profile-name {
       font-family: 'Merriweather', serif;
@@ -208,6 +207,14 @@
       color: var(--primary-color);
       border: 1px solid #dde1e4;
     }
+    
+    /* Специальный стиль для тегов принципов */
+    .tag.principle {
+      background: #fff8e1; /* Легкий желтоватый фон */
+      border-color: #ffe082;
+      color: #8d6e63;
+      font-weight: 500;
+    }
 
     .experience-text {
       white-space: pre-line; /* Сохраняет переносы строк из HTML */
@@ -309,12 +316,21 @@
         <span class="tag">C# (.NET, WPF, WinForms)</span>
         <span class="tag">Python (Django, Flet, PyQt)</span>
         <span class="tag">Java / Kotlin (Android)</span>
+        <span class="tag">Flutter (Dart)</span>
         <span class="tag">C/C++</span>
         <span class="tag">Assembler</span>
         <span class="tag">Delphi</span>
-        <span class="tag">JavaScript / TypeScript</span>
-        <span class="tag">React / Angular / Node.js</span>
-        <span class="tag">TensorFlow / OpenCV</span>
+      </p>
+
+      <h3>Web & Backend</h3>
+      <p>
+        <span class="tag">Next.js</span>
+        <span class="tag">React</span>
+        <span class="tag">Node.js</span>
+        <span class="tag">Laravel (PHP)</span>
+        <span class="tag">Yii2</span>
+        <span class="tag">TypeScript</span>
+        <span class="tag">Angular</span>
       </p>
 
       <h3>Базы данных</h3>
@@ -327,6 +343,16 @@
         <span class="tag">SQLite</span>
       </p>
 
+      <h3>Архитектура и Принципы</h3>
+      <p>
+        <span class="tag principle">SOLID</span>
+        <span class="tag principle">KISS</span>
+        <span class="tag principle">DRY</span>
+        <span class="tag principle">MVVM / MVC</span>
+        <span class="tag principle">Clean Architecture</span>
+        <span class="tag principle">Design Patterns</span>
+      </p>
+
       <h3>Инструменты и ОС</h3>
       <p>
         <span class="tag">Git / GitHub / Bitbucket</span>
@@ -335,7 +361,7 @@
         <span class="tag">Jira</span>
         <span class="tag">Redmine</span>
         <span class="tag">Docker</span>
-        <span class="tag"> и др...</span>        
+        <span class="tag">TensorFlow / OpenCV</span>
       </p>
     </section>
 
