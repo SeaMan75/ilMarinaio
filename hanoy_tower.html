@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>3D Ханойские Башни (Ultimate)</title>
+<style>
+  body { margin: 0; background: #e8e4df; overflow: hidden; font-family: 'Segoe UI', sans-serif; color: #2c3e50; user-select: none; }
+  
+  /* UI Overlay */
+  #ui { position: absolute; top: 20px; left: 0; right: 0; text-align: center; z-index: 10; pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  
+  .panel { 
+    background: rgba(255, 255, 255, 0.85); 
+    backdrop-filter: blur(8px); 
+    padding: 15px 25px; 
+    border-radius: 12px; 
+    box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+    pointer-events: auto;
+    border: 1px solid rgba(255,255,255,0.5);
+  }
+
+  #status { font-size: 22px; font-weight: bold; text-shadow: 0 1px 2px rgba(255,255,255,0.8); color: #2c3e50; transition: color 0.3s; min-height: 30px;}
+  #moves { font-size: 16px; color: #5a3e28; font-weight: 600; margin-top: 5px; }
+  
+  .btn-group { display: flex; gap: 10px; justify-content: center; margin-top: 10px; }
+  
+  button { 
+    padding: 8px 20px; font-size: 15px; font-weight: bold;
+    background: #fff; border: 2px solid #c49a6c; color: #5a3e28;
+    border-radius: 6px; cursor: pointer; transition: all 0.2s;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+  }
+  button:hover:not(:disabled) { background: #fdf6ee; transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+  button:active:not(:disabled) { transform: translateY(0); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; filter: grayscale(1); }
+
+  /* Controls for disc count positioned absolutely */
+  #disc-controls {
+    position: absolute;
+    bottom: 30px;
+    left: 30px; /* Под первым стержнем примерно */
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    pointer-events: auto;
+  }
+  #disc-count-label { font-size: 14px; font-weight: bold; color: #5a3e28; background: rgba(255,255,255,0.7); padding: 2px 8px; border-radius: 4px;}
+  .disc-btn { width: 40px; height: 40px; font-size: 20px; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 50%; }
+
+</style>
+</head>
+<body>
+
+<div id="ui">
+  <div class="panel">
+    <div id="status">Кликни на стержень или диск</div>
+    <div id="moves">Ходов: 0 | Мин: 0</div>
+    <div class="btn-group">
+      <button id="demoBtn" onclick="toggleDemo()">🤖 Демо</button>
+      <button id="resetBtn" onclick="resetGame()">🔄 Сброс</button>
+    </div>
+  </div>
+</div>
+
+<div id="disc-controls">
+  <div id="disc-count-label">Дисков: 5</div>
+  <div style="display:flex; gap:10px;">
+    <button class="disc-btn" onclick="changeDiscCount(-1)">−</button>
+    <button class="disc-btn" onclick="changeDiscCount(1)">+</button>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// === КОНФИГУРАЦИЯ ===
+const CONFIG = {
+  discCount: 5,
+  minDiscs: 3,
+  maxDiscs: 32,
+  pegSpacing: 5.5,
+  baseDiscHeight: 0.4,
+  minDiscHeight: 0.08 // Для 32 дисков
+};
+
+// === АУДИО ДВИЖОК ===
+let audioCtx;
+function initAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function playSound(type, size = 1) {
+  if (!audioCtx) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+
+  const now = audioCtx.currentTime;
+  if (type === 'metal') {
+    // Звук зависит от размера диска и скорости игры
+    const freq = 300 + (CONFIG.discCount - size) * (800 / CONFIG.discCount); 
+    osc.frequency.setValueAtTime(freq, now);
+    osc.type = 'triangle';
+    gain.gain.setValueAtTime(0.15, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+    osc.start(now);
+    osc.stop(now + 0.4);
+  } else if (type === 'error') {
+    osc.frequency.setValueAtTime(150, now);
+    osc.type = 'sawtooth';
+    gain.gain.setValueAtTime(0.15, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+    osc.start(now);
+    osc.stop(now + 0.2);
+  } else if (type === 'win') {
+    osc.frequency.setValueAtTime(440, now);
+    osc.frequency.linearRampToValueAtTime(880, now + 0.3);
+    osc.type = 'sine';
+    gain.gain.setValueAtTime(0.2, now);
+    gain.gain.linearRampToValueAtTime(0, now + 1.0);
+    osc.start(now);
+    osc.stop(now + 1.0);
+  }
+}
+
+// === ПРОЦЕДУРНЫЕ ТЕКСТУРЫ (РЕАЛИСТИЧНЫЙ КИРПИЧ) ===
+function createBrickTextures() {
+  const w = 512, h = 512;
+  const canvasColor = document.createElement('canvas');
+  const canvasBump = document.createElement('canvas');
+  canvasColor.width = canvasBump.width = w;
+  canvasColor.height = canvasBump.height = h;
+  const ctxC = canvasColor.getContext('2d');
+  const ctxB = canvasBump.getContext('2d');
+
+  // База (раствор)
+  ctxC.fillStyle = '#d4c5b5'; ctxC.fillRect(0,0,w,h);
+  ctxB.fillStyle = '#808080'; ctxB.fillRect(0,0,w,h); // Neutral bump
+
+  const bH = 64, bW = 128;
+  for (let r = 0; r < 8; r++) {
+    const off = (r % 2) ? bW/2 : 0;
+    for (let c = -1; c < 5; c++) {
+      const x = c * bW + off + 3; // +3 gap
+      const y = r * bH + 3;
+      const bw = bW - 6;
+      const bh = bH - 6;
+
+      // Color variation
+      const rv = 140 + Math.random()*60;
+      const gv = 60 + Math.random()*40;
+      const bv = 40 + Math.random()*30;
+      ctxC.fillStyle = `rgb(${rv},${gv},${bv})`;
+      ctxC.fillRect(x, y, bw, bh);
+      
+      // Noise on brick
+      for(let i=0; i<20; i++) {
+        ctxC.fillStyle = `rgba(0,0,0,${Math.random()*0.1})`;
+        ctxC.fillRect(x + Math.random()*bw, y + Math.random()*bh, 4, 4);
+      }
+
+      // Bump: Brick is higher than mortar
+      ctxB.fillStyle = '#ffffff'; // High
+      ctxB.fillRect(x, y, bw, bh);
+      
+      // Bevel effect in bump map
+      ctxB.fillStyle = '#cccccc';
+      ctxB.fillRect(x, y, bw, 4); // Top edge lighter/higher transition
+      ctxB.fillStyle = '#aaaaaa';
+      ctxB.fillRect(x, y+bh-4, bw, 4); // Bottom edge
+    }
+  }
+
+  const texColor = new THREE.CanvasTexture(canvasColor);
+  const texBump = new THREE.CanvasTexture(canvasBump);
+  
+  [texColor, texBump].forEach(t => {
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(2, 1);
+    t.anisotropy = 4;
+  });
+
+  return { map: texColor, bumpMap: texBump };
+}
+
+const brickTex = createBrickTextures();
+
+// === СЦЕНА И РЕНДЕР ===
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xe8e4df);
+scene.fog = new THREE.Fog(0xe8e4df, 30, 80);
+
+const camera = new THREE.PerspectiveCamera(40, innerWidth/innerHeight, 0.1, 200);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.maxPolarAngle = Math.PI / 2.1;
+controls.minDistance = 5;
+controls.maxDistance = 60;
+
+// === ОСВЕЩЕНИЕ (FIXED SHADOWS) ===
+// Ambient
+scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+
+// Directional Light that follows camera to keep shadows consistent relative to view
+const dirLight = new THREE.DirectionalLight(0xfff5e6, 1.4);
+dirLight.castShadow = true;
+dirLight.shadow.mapSize.set(2048, 2048);
+dirLight.shadow.bias = -0.0001;
+dirLight.shadow.camera.near = 0.5;
+dirLight.shadow.camera.far = 100;
+const d = 20;
+dirLight.shadow.camera.left = -d;
+dirLight.shadow.camera.right = d;
+dirLight.shadow.camera.top = d;
+dirLight.shadow.camera.bottom = -d;
+scene.add(dirLight);
+scene.add(dirLight.target); // Target needed for following logic
+
+const fillLight = new THREE.DirectionalLight(0xddeeff, 0.3);
+fillLight.position.set(-5, 5, -5);
+scene.add(fillLight);
+
+// === МАТЕРИАЛЫ ===
+const steelMat = new THREE.MeshStandardMaterial({ color: 0x8899a6, metalness: 0.9, roughness: 0.15 });
+const woodMat = new THREE.MeshStandardMaterial({ color: 0xc49a6c, roughness: 0.6 });
+const brickMat = new THREE.MeshStandardMaterial({ 
+  map: brickTex.map, 
+  bumpMap: brickTex.bumpMap, 
+  bumpScale: 0.8,
+  roughness: 0.9 
+});
+
+// Disc materials cache
+const discColors = [0xe6c89c, 0xcd7f32, 0xffd700, 0xc0c0c0, 0xe5e4e2, 0xa8d0e6, 0xf8b195, 0x6c5b7b];
+const discMats = discColors.map(c => new THREE.MeshStandardMaterial({ 
+  color: c, metalness: 0.7, roughness: 0.25, side: THREE.DoubleSide 
+}));
+
+// === ОБЪЕКТЫ МИРА ===
+const pegPositions = [-CONFIG.pegSpacing, 0, CONFIG.pegSpacing];
+const stacks = [[], [], []];
+let pegMeshes = [];
+let hitBoxes = [];
+let pedestal, base;
+
+function buildEnvironment() {
+  // Cleanup old
+  if(pedestal) scene.remove(pedestal);
+  if(base) scene.remove(base);
+  pegMeshes.forEach(p => scene.remove(p));
+  hitBoxes.forEach(h => scene.remove(h));
+  pegMeshes = []; hitBoxes = [];
+
+  // Dynamic sizing based on disc count
+  const maxDiscs = CONFIG.discCount;
+  // Calculate disc height: taper from 0.4 down to 0.08 as discs increase
+  const currentDiscH = Math.max(CONFIG.minDiscHeight, CONFIG.baseDiscHeight * (5 / maxDiscs));
+  const stackHeight = maxDiscs * currentDiscH;
+  const pegHeight = stackHeight + 2.5; // Extra clearance
+  
+  // Pedestal & Base scale
+  const baseWidth = 18 + (maxDiscs > 10 ? (maxDiscs-10)*0.2 : 0);
+  
+  // 1. Brick Pedestal
+  const pedGeo = new THREE.BoxGeometry(baseWidth + 1, 3, 7);
+  pedestal = new THREE.Mesh(pedGeo, brickMat);
+  pedestal.position.y = -1.5;
+  pedestal.receiveShadow = true; pedestal.castShadow = true;
+  scene.add(pedestal);
+
+  // 2. Wood Base
+  const baseGeo = new THREE.BoxGeometry(baseWidth, 0.5, 6);
+  base = new THREE.Mesh(baseGeo, woodMat);
+  base.position.y = 0.25;
+  base.receiveShadow = true; base.castShadow = true;
+  scene.add(base);
+
+  // 3. Pegs
+  pegPositions.forEach((x, i) => {
+    const pGeo = new THREE.CylinderGeometry(0.15, 0.15, pegHeight, 16);
+    const peg = new THREE.Mesh(pGeo, steelMat);
+    peg.position.set(x, 0.5 + pegHeight/2, 0);
+    peg.castShadow = true; peg.receiveShadow = true;
+    scene.add(peg);
+    pegMeshes.push(peg);
+
+    // Hitbox
+    const hGeo = new THREE.CylinderGeometry(1.8, 1.8, pegHeight, 8);
+    const hMat = new THREE.MeshBasicMaterial({visible:false});
+    const hit = new THREE.Mesh(hGeo, hMat);
+    hit.position.copy(peg.position);
+    hit.userData = { isPeg: true, index: i };
+    scene.add(hit);
+    hitBoxes.push(hit);
+  });
+
+  // Store dynamic params globally for animation/logic
+  CONFIG.currentDiscH = currentDiscH;
+  CONFIG.currentPegH = pegHeight;
+  
+  // Adjust camera limits
+  controls.maxDistance = 30 + maxDiscs * 1.5;
+}
+
+function createDiscGeo(size, height) {
+  const rInner = 0.22;
+  // Scale radius based on total discs so they fit on base
+  const maxR = 2.4; 
+  const scale = Math.min(1, 5 / CONFIG.discCount); 
+  const rOuter = (0.7 + size * 0.35) * scale;
+  
+  const pts = [
+    new THREE.Vector2(rInner, 0),
+    new THREE.Vector2(rInner, height),
+    new THREE.Vector2(rOuter, height),
+    new THREE.Vector2(rOuter, 0)
+  ];
+  return new THREE.LatheGeometry(pts, 32);
+}
+
+// === СОСТОЯНИЕ ИГРЫ ===
+let selectedPeg = null;
+let selectedDiscObj = null;
+let moves = 0;
+let isAnimating = false;
+let animState = null;
+let demoMode = false;
+let demoQueue = [];
+let demoSpeed = 1;
+
+function initGame() {
+  // Clear discs
+  stacks.flat().forEach(d => scene.remove(d.mesh));
+  stacks.forEach(s => s.length = 0);
+  
+  buildEnvironment();
+  
+  const h = CONFIG.currentDiscH;
+  for (let s = CONFIG.discCount; s >= 1; s--) {
+    const geo = createDiscGeo(s, h);
+    const matIdx = (s-1) % discMats.length;
+    const mesh = new THREE.Mesh(geo, discMats[matIdx]);
+    mesh.castShadow = true; mesh.receiveShadow = true;
+    mesh.userData = { isDisc: true, size: s };
+    scene.add(mesh);
+    
+    stacks[0].push({ size: s, mesh });
+    updateDiscPos(mesh, 0, stacks[0].length-1);
+  }
+  
+  moves = 0;
+  updateUI();
+  stopDemo();
+  
+  // Reset Camera nicely
+  const dist = 18 + CONFIG.discCount * 0.8;
+  camera.position.set(0, 10 + CONFIG.discCount*0.3, dist);
+  controls.target.set(0, CONFIG.currentPegH/3, 0);
+}
+
+function updateDiscPos(mesh, pegIdx, stackIdx) {
+  mesh.position.x = pegPositions[pegIdx];
+  mesh.position.y = 0.5 + CONFIG.currentDiscH/2 + stackIdx * CONFIG.currentDiscH;
+  mesh.position.z = 0;
+}
+
+// === ЛОГИКА ДЕМО (HANOI SOLVER) ===
+function solveHanoi(n, from, to, aux) {
+  if (n === 0) return;
+  solveHanoi(n-1, from, aux, to);
+  demoQueue.push({from, to});
+  solveHanoi(n-1, aux, to, from);
+}
+
+window.toggleDemo = function() {
+  if (isAnimating && !demoMode) return;
+  
+  if (demoMode) {
+    stopDemo();
+  } else {
+    // Start Demo
+    if (stacks[0].length !== CONFIG.discCount && stacks[2].length !== CONFIG.discCount) {
+      resetGame(); // Reset first if messy
+    }
+    if (stacks[2].length === CONFIG.discCount) resetGame(); // Already won
+    
+    demoMode = true;
+    demoQueue = [];
+    solveHanoi(CONFIG.discCount, 0, 2, 1);
+    
+    // Adaptive speed: faster for more discs
+    // Base: 0.06 progress per frame. 
+    // For 32 discs, we need ~4 billion moves... wait, 2^32 is too many.
+    // Cap demo at reasonable visual speed or skip frames?
+    // Let's just make animation instant-ish for high counts
+    if (CONFIG.discCount > 15) demoSpeed = 10; 
+    else if (CONFIG.discCount > 10) demoSpeed = 4;
+    else if (CONFIG.discCount > 7) demoSpeed = 2;
+    else demoSpeed = 1;
+    
+    document.getElementById('demoBtn').textContent = "⏹ Стоп";
+    document.getElementById('demoBtn').style.background = "#ffebee";
+    document.getElementById('demoBtn').style.borderColor = "#e57373";
+  }
+};
+
+function stopDemo() {
+  demoMode = false;
+  demoQueue = [];
+  demoSpeed = 1;
+  document.getElementById('demoBtn').textContent = "🤖 Демо";
+  document.getElementById('demoBtn').style.background = "";
+  document.getElementById('demoBtn').style.borderColor = "";
+}
+
+function processDemoStep() {
+  if (!demoMode || demoQueue.length === 0 || isAnimating) return;
+  
+  const move = demoQueue.shift();
+  executeMove(move.from, move.to, true);
+  
+  if (demoQueue.length === 0 && stacks[2].length === CONFIG.discCount) {
+    setTimeout(() => {
+      stopDemo();
+      playSound('win');
+      updateStatus("🎉 Демо завершено!", "#27ae60");
+    }, 500);
+  }
+}
+
+// === CORE GAME LOGIC ===
+function executeMove(fromIdx, toIdx, isAuto = false) {
+  const fromStack = stacks[fromIdx];
+  const toStack = stacks[toIdx];
+  
+  if (fromStack.length === 0) return false;
+  const disc = fromStack[fromStack.length-1];
+  const topTarget = toStack.length > 0 ? toStack[toStack.length-1].size : 999;
+  
+  if (disc.size < topTarget) {
+    // Valid move
+    fromStack.pop();
+    toStack.push(disc);
+    moves++;
+    updateUI();
+    
+    // Deselect if manual
+    if (!isAuto && selectedDiscObj) {
+      selectedDiscObj.mesh.material.emissive.setHex(0x000000);
+      selectedDiscObj = null; selectedPeg = null;
+    }
+    
+    startAnim(fromIdx, toIdx, disc);
+    return true;
+  }
+  return false;
+}
+
+function startAnim(from, to, discObj) {
+  isAnimating = true;
+  const targetY = 0.5 + CONFIG.currentDiscH/2 + (stacks[to].length-1) * CONFIG.currentDiscH;
+  const liftY = 0.5 + CONFIG.currentPegH + 1.0; // Clear the tallest possible stack + margin
+  
+  animState = {
+    disc: discObj,
+    phase: 0, // 0:up, 1:over, 2:down
+    t: 0,
+    sx: discObj.mesh.position.x, sy: discObj.mesh.position.y,
+    tx: pegPositions[to], ty: targetY,
+    ly: liftY
+  };
+}
+
+function ease(t) { return t<0.5 ? 4*t*t*t : 1-Math.pow(-2*t+2,3)/2; }
+
+function updateAnim() {
+  if (!animState) return;
+  
+  // Speed multiplier
+  const spd = 0.06 * demoSpeed;
+  animState.t += spd;
+  
+  const s = animState;
+  const et = ease(Math.min(1, s.t));
+  
+  if (s.phase === 0) { // UP
+    s.disc.mesh.position.y = s.sy + (s.ly - s.sy) * et;
+  } else if (s.phase === 1) { // OVER
+    s.disc.mesh.position.x = s.sx + (s.tx - s.sx) * et;
+    s.disc.mesh.position.y = s.ly;
+  } else { // DOWN
+    s.disc.mesh.position.y = s.ly + (s.ty - s.ly) * et;
+  }
+  
+  if (s.t >= 1) {
+    s.t = 0;
+    s.phase++;
+    if (s.phase === 1) s.sx = s.disc.mesh.position.x; // Update start X for next phase
+    if (s.phase === 2) s.sy = s.ly; // Update start Y for next phase
+    
+    if (s.phase > 2) {
+      // Finished
+      isAnimating = false;
+      animState = null;
+      playSound('metal', s.disc.size);
+      
+      // Check win
+      if (stacks[2].length === CONFIG.discCount && !demoMode) {
+        playSound('win');
+        updateStatus("🎉 Победа!", "#27ae60");
+      }
+    }
+  }
+}
+
+// === INTERACTION ===
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  if (isAnimating || demoMode) return;
+  initAudio();
+  
+  mouse.x = (e.clientX / innerWidth) * 2 - 1;
+  mouse.y = -(e.clientY / innerHeight) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+  
+  // Intersect hitboxes and discs
+  const targets = [...hitBoxes, ...stacks.flat().map(d=>d.mesh)];
+  const hits = raycaster.intersectObjects(targets);
+  
+  if (hits.length === 0) {
+    deselect(); return;
+  }
+  
+  const obj = hits[0].object;
+  let pegIdx = -1;
+  
+  if (obj.userData.isPeg) pegIdx = obj.userData.index;
+  else if (obj.userData.isDisc) {
+    // Find which peg this disc belongs to by X pos
+    const x = obj.position.x;
+    pegIdx = pegPositions.reduce((best, px, i) => Math.abs(x-px) < Math.abs(x-pegPositions[best]) ? i : best, 0);
+  } else return;
+  
+  handlePegClick(pegIdx);
+});
+
+function handlePegClick(idx) {
+  const stack = stacks[idx];
+  
+  if (selectedDiscObj === null) {
+    // Select
+    if (stack.length === 0) {
+      playSound('error');
+      updateStatus("Пустой стержень", "#c0392b");
+      return;
+    }
+    selectedPeg = idx;
+    selectedDiscObj = stack[stack.length-1];
+    selectedDiscObj.mesh.material.emissive.setHex(0x333333);
+    selectedDiscObj.mesh.position.y += CONFIG.currentDiscH * 0.5; // Lift slightly
+    updateStatus(`Выбран диск ${selectedDiscObj.size}. Куда?`, "#2980b9");
+  } else {
+    // Move or Cancel
+    if (idx === selectedPeg) {
+      deselect();
+      updateStatus("Отменено", "#2c3e50");
+    } else {
+      const success = executeMove(selectedPeg, idx);
+      if (!success) {
+        playSound('error');
+        updateStatus("Нельзя на меньший!", "#c0392b");
+        deselect();
+      } else {
+        updateStatus("Хороший ход!", "#2c3e50");
+      }
+    }
+  }
+}
+
+function deselect() {
+  if (selectedDiscObj) {
+    selectedDiscObj.mesh.material.emissive.setHex(0x000000);
+    updateDiscPos(selectedDiscObj.mesh, selectedPeg, stacks[selectedPeg].length-1);
+    selectedDiscObj = null;
+    selectedPeg = null;
+  }
+}
+
+// === UI HELPERS ===
+function updateUI() {
+  document.getElementById('moves').textContent = `Ходов: ${moves} | Мин: ${Math.pow(2, CONFIG.discCount)-1}`;
+  document.getElementById('disc-count-label').textContent = `Дисков: ${CONFIG.discCount}`;
+  
+  // Disable buttons during animation/demo
+  const btns = document.querySelectorAll('button');
+  btns.forEach(b => {
+    if (b.id === 'demoBtn' || b.id === 'resetBtn') return; // These have own logic
+    b.disabled = isAnimating || demoMode;
+  });
+}
+
+function updateStatus(txt, col) {
+  const el = document.getElementById('status');
+  el.textContent = txt;
+  el.style.color = col;
+}
+
+window.changeDiscCount = function(delta) {
+  if (isAnimating || demoMode) return;
+  const newVal = CONFIG.discCount + delta;
+  if (newVal >= CONFIG.minDiscs && newVal <= CONFIG.maxDiscs) {
+    CONFIG.discCount = newVal;
+    initGame();
+  }
+};
+
+window.resetGame = function() {
+  if (isAnimating && !demoMode) return;
+  stopDemo();
+  initGame();
+  updateStatus("Новая игра", "#2c3e50");
+};
+
+// === MAIN LOOP ===
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  
+  // Shadow Follow Logic: Keep light aligned with camera but elevated
+  // This ensures shadows always fall "away" from viewer roughly
+  const camDir = new THREE.Vector3();
+  camera.getWorldDirection(camDir);
+  camDir.y = 0; camDir.normalize();
+  
+  const lightOffset = camDir.clone().multiplyScalar(-15).add(new THREE.Vector3(0, 25, 0));
+  dirLight.position.copy(lightOffset);
+  dirLight.target.position.set(0,0,0);
+  
+  updateAnim();
+  
+  // Process demo queue only when idle
+  if (!isAnimating && demoMode) {
+    processDemoStep();
+  }
+  
+  renderer.render(scene, camera);
+}
+
+// Resize handler
+window.addEventListener('resize', () => {
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+// Start
+initGame();
+animate();
+
+</script>
+</body>
+</html>
