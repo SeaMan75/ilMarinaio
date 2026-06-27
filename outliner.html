@@ -2,8 +2,10 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Markdown Аутлайнер (Pro UX)</title>
+    <title>Markdown Аутлайнер (Pro + LaTeX)</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/atom-one-dark.min.css">
+    <!-- KaTeX для математики -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
     <style>
         :root {
             --bg-dark: #1e1e1e;
@@ -73,17 +75,20 @@
         #preview code { background: #2d2d2d; padding: 2px 5px; border-radius: 4px; font-family: monospace; font-size: 0.9em; }
         #preview pre { background: #161b22 !important; border: 1px solid #30363d; border-radius: 6px; padding: 15px; overflow-x: auto; }
         #preview pre code { background: transparent; padding: 0; color: inherit; }
- .status-bar { 
-    padding: 5px 15px; 
-    background: var(--accent); 
-    color: white; 
-    font-size: 12px; 
-    display: flex; 
-    justify-content: space-between; 
-    align-items: center;
-}
+        
+        /* Стили для KaTeX */
+        #preview .katex-display { margin: 1.5em 0; overflow-x: auto; overflow-y: hidden; }
+        #preview .katex { font-size: 1.1em; }
 
-
+        .status-bar { 
+            padding: 5px 15px; 
+            background: var(--accent); 
+            color: white; 
+            font-size: 12px; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center;
+        }
     </style>
 </head>
 <body>
@@ -94,7 +99,8 @@
     <div class="tree-controls">
         <div class="shortcut-hint">
             ↵ Новая ветка &nbsp;|&nbsp; ⇧↵ Вложить<br>
-            ✏️ Переименовать &nbsp;|&nbsp; Del Удалить
+            ✏️ Переименовать &nbsp;|&nbsp; Del Удалить<br>
+            <span style="color:#aaa;">LaTeX: <code>$x^2$</code> или <code>$$\int f dx$$</code></span>
         </div>
         <div style="display:flex; gap:5px;">
             <button class="btn-sm" onclick="addChild()">➕ Вложить</button>
@@ -106,11 +112,11 @@
 
 <div class="editor-area">
     <div class="toolbar">
-        <span style="font-weight:bold; color:#fff;">Markdown Editor</span>
+        <span style="font-weight:bold; color:#fff;">Markdown + LaTeX Editor</span>
         <button class="btn-sm" style="width:auto; padding: 6px 15px;" onclick="toggleMode()">👁 Переключить вид</button>
     </div>
     
-    <textarea id="codeEditor" placeholder="# Заголовок&#10;&#10;Пиши Markdown или код...&#10;&#10;```cpp&#10;int x = 10;&#10;```" oninput="onContentChange()"></textarea>
+    <textarea id="codeEditor" placeholder="# Заголовок&#10;&#10;Текст с формулой: $E = mc^2$&#10;&#10;Блочная формула:&#10;$$\int_0^\infty e^{-x^2} dx = \frac{\sqrt{\pi}}{2}$$&#10;&#10;```cpp&#10;int x = 10;&#10;```" oninput="onContentChange()"></textarea>
     <div id="preview"></div>
 
     <div class="status-bar">
@@ -119,15 +125,17 @@
     </div>
 </div>
 
+<!-- Библиотеки -->
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
 
 <script>
     // === СОСТОЯНИЕ ===
     let data = JSON.parse(localStorage.getItem('mdTreeData')) || [
-        { id: 1, title: '📌 Пример C++', content: '# Алгоритм поиска\nОписание задачи.\n\n```cpp\n#include <iostream>\n\nint main() {\n    std::cout << "Hello!";\n    return 0;\n}\n```', collapsed: false,
+        { id: 1, title: '📌 Пример LaTeX', content: '# Математика в Markdown\n\nInline формула: $E = mc^2$\n\nБлочная формула:\n$$\\int_0^\\infty e^{-x^2} dx = \\frac{\\sqrt{\\pi}}{2}$$\n\nМатрица:\n$$\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}$$\n\n## Код C++\n\n```cpp\n#include <iostream>\nint main() {\n    std::cout << "Hello!";\n    return 0;\n}\n```', collapsed: false,
             children: [
-                { id: 2, title: '📝 Заметки', content: '- Изучить синтаксис\n- Протестировать на данных', collapsed: false, children: [] }
+                { id: 2, title: '📝 Заметки', content: '- Изучить KaTeX\n- Протестировать формулы', collapsed: false, children: [] }
             ] 
         }
     ];
@@ -137,22 +145,68 @@
     let isPreviewMode = false;
     let saveTimeout = null;
 
-    function updateStorageInfo() {
-    const dataStr = localStorage.getItem('mdTreeData') || '';
-    const usedBytes = new Blob([dataStr]).size;
-    const limitBytes = 5 * 1024 * 1024; // 5 МБ (средний лимит)
-    const percent = ((usedBytes / limitBytes) * 100).toFixed(2);
-    
-    let color = '#4caf50'; // зелёный
-    if (percent > 70) color = '#ff9800'; // оранжевый
-    if (percent > 90) color = '#f44336'; // красный
-    
-    const info = document.getElementById('storageInfo');
-    if (info) {
-        info.innerHTML = `💾 ${(usedBytes/1024).toFixed(1)} КБ / 5 МБ (${percent}%)`;
-        info.style.color = color;
+    // === MARKDOWN + LATEX РЕНДЕРЕР ===
+    function renderMarkdownWithMath(text) {
+        const mathBlocks = [];
+        let counter = 0;
+        
+        // 1. Разбиваем текст на части: код (```...```) и обычный текст
+        const parts = [];
+        const codeRegex = /```[\s\S]*?```/g;
+        let lastIndex = 0;
+        let match;
+        
+        while ((match = codeRegex.exec(text)) !== null) {
+            if (match.index > lastIndex) {
+                parts.push({ type: 'text', content: text.slice(lastIndex, match.index) });
+            }
+            parts.push({ type: 'code', content: match[0] });
+            lastIndex = match.index + match[0].length;
+        }
+        if (lastIndex < text.length) {
+            parts.push({ type: 'text', content: text.slice(lastIndex) });
+        }
+        
+        // 2. В текстовых частях заменяем математику на placeholder'ы
+        const processed = parts.map(part => {
+            if (part.type === 'code') return part.content;
+            
+            // Block math $$...$$
+            let result = part.content.replace(/\$\$([\s\S]+?)\$\$/g, (m, math) => {
+                const id = `@@MATH_BLOCK_${counter++}@@`;
+                mathBlocks.push({ id, math: math.trim(), display: true });
+                return id;
+            });
+            
+            // Inline math $...$
+            result = result.replace(/\$([^\$\n]+?)\$/g, (m, math) => {
+                const id = `@@MATH_INLINE_${counter++}@@`;
+                mathBlocks.push({ id, math: math.trim(), display: false });
+                return id;
+            });
+            
+            return result;
+        }).join('');
+        
+        // 3. Прогоняем через marked
+        let html = marked.parse(processed);
+        
+        // 4. Заменяем placeholder'ы на отрендеренный KaTeX
+        mathBlocks.forEach(({ id, math, display }) => {
+            try {
+                const rendered = katex.renderToString(math, { 
+                    displayMode: display,
+                    throwOnError: false 
+                });
+                html = html.replace(id, rendered);
+            } catch (e) {
+                html = html.replace(id, `<span style="color:red">[Math Error: ${e.message}]</span>`);
+            }
+        });
+        
+        return html;
     }
-}
+
     // === УТИЛИТЫ ДЕРЕВА ===
     function findNode(id, nodes = data) {
         for (let node of nodes) {
@@ -193,7 +247,6 @@
         row.className = `node-row ${node.id === activeId ? 'active' : ''}`;
         row.dataset.id = node.id;
 
-        // Сворачивание
         const toggle = document.createElement('span');
         toggle.className = 'toggle-icon';
         if (node.children.length > 0) {
@@ -202,40 +255,35 @@
         } else { toggle.textContent = '•'; toggle.style.opacity = '0.3'; }
         row.appendChild(toggle);
 
-        // Название (текст)
         const titleSpan = document.createElement('span');
         titleSpan.className = 'node-title';
         titleSpan.textContent = node.title;
         row.appendChild(titleSpan);
 
-        // Иконка редактирования
         const editIcon = document.createElement('span');
         editIcon.className = 'edit-icon';
         editIcon.textContent = '✏️';
         editIcon.onclick = (e) => { e.stopPropagation(); startEditing(node.id); };
         row.appendChild(editIcon);
 
-        // Поле ввода (скрыто)
-// Поле ввода (скрыто)
-const input = document.createElement('input');
-input.className = 'node-title-input';
-input.value = node.title;
-input.onblur = () => finishEditing(node.id, true);
-input.onkeydown = (e) => {
-    if (e.key === 'Enter') { 
-        e.preventDefault(); 
-        e.stopPropagation(); // ← ВАЖНО: не даём событию всплыть
-        finishEditing(node.id, true); 
-    }
-    if (e.key === 'Escape') { 
-        e.preventDefault(); 
-        e.stopPropagation(); // ← ВАЖНО
-        finishEditing(node.id, false); 
-    }
-};
-row.appendChild(input);
+        const input = document.createElement('input');
+        input.className = 'node-title-input';
+        input.value = node.title;
+        input.onblur = () => finishEditing(node.id, true);
+        input.onkeydown = (e) => {
+            if (e.key === 'Enter') { 
+                e.preventDefault(); 
+                e.stopPropagation();
+                finishEditing(node.id, true); 
+            }
+            if (e.key === 'Escape') { 
+                e.preventDefault(); 
+                e.stopPropagation();
+                finishEditing(node.id, false); 
+            }
+        };
+        row.appendChild(input);
 
-        // Клик по строке выбирает узел
         row.onclick = (e) => {
             if (e.target === editIcon || e.target === input) return;
             selectNode(node.id);
@@ -243,7 +291,6 @@ row.appendChild(input);
 
         li.appendChild(row);
 
-        // Дети
         if (node.children.length > 0) {
             const childUl = document.createElement('ul');
             if (node.collapsed) childUl.className = 'collapsed';
@@ -259,7 +306,7 @@ row.appendChild(input);
         if (activeRow) activeRow.classList.add('active');
     }
 
-    // === РЕДАКТИРОВАНИЕ ИМЕНИ ===
+    // === РЕДАКТИРОВАНИЕ ===
     function startEditing(id) {
         if (editingId) finishEditing(editingId, true);
         editingId = id;
@@ -299,7 +346,7 @@ row.appendChild(input);
         editingId = null;
     }
 
-    // === ВЫБОР И СОДЕРЖИМОЕ ===
+    // === ВЫБОР ===
     function selectNode(id) {
         if (editingId) finishEditing(editingId, true);
         if (id === activeId) return;
@@ -330,7 +377,7 @@ row.appendChild(input);
         parent.children.push(newNode);
         parent.collapsed = false;
         saveToStorage(); renderTree(); selectNode(newNode.id);
-        startEditing(newNode.id); // Сразу предлагаем переименовать
+        startEditing(newNode.id);
     }
 
     function addSibling() {
@@ -359,48 +406,56 @@ row.appendChild(input);
         }
     }
 
-    function saveCurrent() {
-        const node = findNode(activeId);
-        if (node) {
-            node.content = document.getElementById('codeEditor').value;
-            saveToStorage();
+    function saveToStorage() {
+        try {
+            localStorage.setItem('mdTreeData', JSON.stringify(data));
+            document.getElementById('status').textContent = '💾 Сохранено';
+            updateStorageInfo();
+        } catch (e) {
+            document.getElementById('status').textContent = '⚠️ Хранилище переполнено!';
         }
     }
-
-function saveToStorage() {
-    try {
-        localStorage.setItem('mdTreeData', JSON.stringify(data));
-        document.getElementById('status').textContent = '💾 Сохранено';
-        updateStorageInfo(); // ← добавь эту строку
-    } catch (e) {
-        document.getElementById('status').textContent = '⚠️ Хранилище переполнено!';
-    }
-}
 
     function debounceSave() {
         if (saveTimeout) clearTimeout(saveTimeout);
         saveTimeout = setTimeout(saveToStorage, 400);
     }
 
-    // === ГОРЯЧИЕ КЛАВИШИ ===
-document.addEventListener('keydown', (e) => {
-    // Защита: если фокус в любом input (редактирование имени или что-то ещё)
-    if (document.activeElement.tagName === 'INPUT') return;
-    if (editingId) return;
-    if (!activeId) return;
-
-    if (e.key === 'Enter') {
-        e.preventDefault();
-        if (e.shiftKey) addChild();
-        else addSibling();
+    function updateStorageInfo() {
+        const dataStr = localStorage.getItem('mdTreeData') || '';
+        const usedBytes = new Blob([dataStr]).size;
+        const limitBytes = 5 * 1024 * 1024;
+        const percent = ((usedBytes / limitBytes) * 100).toFixed(2);
+        
+        let color = '#4caf50';
+        if (percent > 70) color = '#ff9800';
+        if (percent > 90) color = '#f44336';
+        
+        const info = document.getElementById('storageInfo');
+        if (info) {
+            info.innerHTML = `💾 ${(usedBytes/1024).toFixed(1)} КБ / 5 МБ (${percent}%)`;
+            info.style.color = color;
+        }
     }
-    if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (document.activeElement.tagName !== 'TEXTAREA') {
+
+    // === ГОРЯЧИЕ КЛАВИШИ (ИСПРАВЛЕНО!) ===
+    document.addEventListener('keydown', (e) => {
+        // ✅ ИСПРАВЛЕНИЕ: проверяем и INPUT, и TEXTAREA
+        const activeTag = document.activeElement.tagName;
+        if (activeTag === 'INPUT' || activeTag === 'TEXTAREA') return;
+        if (editingId) return;
+        if (!activeId) return;
+
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            if (e.shiftKey) addChild();
+            else addSibling();
+        }
+        if (e.key === 'Delete' || e.key === 'Backspace') {
             e.preventDefault();
             deleteNode();
         }
-    }
-});
+    });
 
     // === PREVIEW ===
     function toggleMode() {
@@ -417,7 +472,11 @@ document.addEventListener('keydown', (e) => {
     function updatePreview() {
         const node = findNode(activeId);
         if (!node) return;
-        document.getElementById('preview').innerHTML = marked.parse(node.content);
+        
+        // ✅ ИСПОЛЬЗУЕМ НОВЫЙ РЕНДЕРЕР С LATEX
+        document.getElementById('preview').innerHTML = renderMarkdownWithMath(node.content);
+        
+        // Подсветка кода
         document.querySelectorAll('pre code').forEach(el => hljs.highlightElement(el));
     }
 
@@ -425,8 +484,6 @@ document.addEventListener('keydown', (e) => {
     renderTree();
     selectNode(activeId);
     updateStorageInfo();
-
-    
 </script>
 </body>
 </html>
