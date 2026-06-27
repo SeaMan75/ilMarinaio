@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Мой Аутлайнер</title>
+    <!-- Подключаем стили для подсветки кода -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
+    <style>
+        body { margin: 0; font-family: 'Segoe UI', sans-serif; background: #1e1e1e; color: #d4d4d4; display: flex; height: 100vh; overflow: hidden; }
+        
+        /* Боковая панель (Структура) */
+        .sidebar { width: 250px; background: #252526; border-right: 1px solid #333; display: flex; flex-direction: column; }
+        .sidebar-header { padding: 10px; font-weight: bold; border-bottom: 1px solid #333; background: #333; }
+        .node-list { list-style: none; padding: 0; margin: 0; overflow-y: auto; flex-grow: 1; }
+        .node-item { padding: 8px 15px; cursor: pointer; border-left: 3px solid transparent; transition: 0.2s; display: flex; justify-content: space-between; }
+        .node-item:hover { background: #2a2d2e; }
+        .node-item.active { background: #37373d; border-left-color: #007acc; }
+        .add-btn { padding: 10px; background: #0e639c; color: white; border: none; cursor: pointer; text-align: center; }
+        .add-btn:hover { background: #1177bb; }
+
+        /* Основная область (Редактор) */
+        .editor-container { flex-grow: 1; display: flex; flex-direction: column; position: relative; }
+        .toolbar { padding: 10px; background: #2d2d2d; border-bottom: 1px solid #333; display: flex; gap: 10px; }
+        
+        textarea { 
+            flex-grow: 1; 
+            background: #1e1e1e; 
+            color: #d4d4d4; 
+            border: none; 
+            resize: none; 
+            padding: 20px; 
+            font-family: 'Consolas', 'Courier New', monospace; 
+            font-size: 14px; 
+            outline: none; 
+            line-height: 1.5;
+        }
+
+        /* Превью с подсветкой (для режима просмотра) */
+        #preview { 
+            flex-grow: 1; 
+            padding: 20px; 
+            overflow: auto; 
+            display: none; 
+            font-family: 'Consolas', monospace; 
+        }
+        pre { margin: 0; background: transparent !important; }
+
+        .status-bar { padding: 5px 10px; background: #007acc; color: white; font-size: 12px; }
+    </style>
+</head>
+<body>
+
+<div class="sidebar">
+    <div class="sidebar-header">Структура</div>
+    <ul class="node-list" id="nodeList"></ul>
+    <button class="add-btn" onclick="addNode()">+ Новый узел</button>
+</div>
+
+<div class="editor-container">
+    <div class="toolbar">
+        <button onclick="toggleMode()">👁 Просмотр / Код</button>
+        <button onclick="deleteNode()" style="background:#ce3939; color:white; border:none; padding:5px 10px; cursor:pointer;">🗑 Удалить</button>
+    </div>
+    
+    <!-- Поле ввода -->
+    <textarea id="codeEditor" placeholder="Пишите код или текст здесь... Подсветка работает в режиме просмотра." oninput="saveCurrent()"></textarea>
+    
+    <!-- Область просмотра с подсветкой -->
+    <div id="preview"></div>
+
+    <div class="status-bar" id="status">Готово</div>
+</div>
+
+<!-- Библиотека для подсветки синтаксиса -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-css.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+
+<script>
+    // === ЛОГИКА ХРАНЕНИЯ ===
+    let data = JSON.parse(localStorage.getItem('myOutlinerData')) || [
+        { id: 1, title: 'Пример JS', content: 'console.log("Hello World");' },
+        { id: 2, title: 'Заметка', content: 'Не забыть купить молоко...' }
+    ];
+    let activeId = data[0]?.id || null;
+    let isPreviewMode = false;
+
+    function saveToStorage() {
+        localStorage.setItem('myOutlinerData', JSON.stringify(data));
+        document.getElementById('status').textContent = 'Сохранено: ' + new Date().toLocaleTimeString();
+    }
+
+    function renderList() {
+        const list = document.getElementById('nodeList');
+        list.innerHTML = '';
+        data.forEach(node => {
+            const li = document.createElement('li');
+            li.className = `node-item ${node.id === activeId ? 'active' : ''}`;
+            li.innerHTML = `<span>${node.title}</span>`;
+            li.onclick = () => switchNode(node.id);
+            list.appendChild(li);
+        });
+    }
+
+    function switchNode(id) {
+        saveCurrent(); // Сохраняем текущий перед переключением
+        activeId = id;
+        const node = data.find(n => n.id === activeId);
+        document.getElementById('codeEditor').value = node.content;
+        updatePreview();
+        renderList();
+    }
+
+    function addNode() {
+        const title = prompt("Название узла:", "Новая заметка");
+        if (!title) return;
+        const newNode = { id: Date.now(), title: title, content: '' };
+        data.push(newNode);
+        switchNode(newNode.id);
+        saveToStorage();
+    }
+
+    function deleteNode() {
+        if (data.length <= 1) { alert("Нельзя удалить последний узел!"); return; }
+        if (!confirm("Удалить этот узел?")) return;
+        
+        data = data.filter(n => n.id !== activeId);
+        switchNode(data[0].id);
+        saveToStorage();
+    }
+
+    function saveCurrent() {
+        const node = data.find(n => n.id === activeId);
+        if (node) {
+            node.content = document.getElementById('codeEditor').value;
+            // Обновляем название в списке, если это первая строка (опционально)
+            // node.title = node.content.split('\n')[0] || node.title; 
+            saveToStorage();
+            if(isPreviewMode) updatePreview();
+        }
+    }
+
+    function toggleMode() {
+        isPreviewMode = !isPreviewMode;
+        const editor = document.getElementById('codeEditor');
+        const preview = document.getElementById('preview');
+        
+        if (isPreviewMode) {
+            editor.style.display = 'none';
+            preview.style.display = 'block';
+            updatePreview();
+        } else {
+            editor.style.display = 'block';
+            preview.style.display = 'none';
+        }
+    }
+
+    function updatePreview() {
+        const node = data.find(n => n.id === activeId);
+        const code = node.content;
+        // Экранируем HTML и оборачиваем в pre/code для Prism
+        const escapedCode = code.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        document.getElementById('preview').innerHTML = `<pre><code class="language-javascript">${escapedCode}</code></pre>`;
+        Prism.highlightAll();
+    }
+
+    // Инициализация
+    if(activeId) switchNode(activeId);
+    else renderList();
+</script>
+
+</body>
+</html>
