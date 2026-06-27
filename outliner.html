@@ -2,8 +2,11 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Древовидный Аутлайнер</title>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
+    <title>Mardown Аутлайнер</title>
+    
+    <!-- Стили для подсветки кода (Highlight.js) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/atom-one-dark.min.css">
+    
     <style>
         :root {
             --bg-dark: #1e1e1e;
@@ -17,16 +20,14 @@
 
         body { margin: 0; font-family: 'Segoe UI', sans-serif; background: var(--bg-dark); color: var(--text-main); display: flex; height: 100vh; overflow: hidden; }
         
-        /* Дерево (Слева) */
+        /* Дерево */
         .sidebar { width: 300px; background: var(--sidebar-bg); border-right: 1px solid var(--border-color); display: flex; flex-direction: column; user-select: none; }
-        .sidebar-header { padding: 15px; font-weight: bold; border-bottom: 1px solid var(--border-color); background: #333; display: flex; justify-content: space-between; align-items: center; }
-        
+        .sidebar-header { padding: 15px; font-weight: bold; border-bottom: 1px solid var(--border-color); background: #333; }
         .tree-container { flex-grow: 1; overflow-y: auto; padding: 10px 0; }
         
-        /* Стили узлов дерева */
         ul.tree { list-style: none; padding-left: 0; margin: 0; }
-        ul.tree ul { list-style: none; padding-left: 20px; margin: 0; display: block; }
-        ul.tree ul.collapsed { display: none; } /* Скрытая ветка */
+        ul.tree ul { list-style: none; padding-left: 20px; margin: 0; display: block; border-left: 1px solid #333; } /* Линия иерархии */
+        ul.tree ul.collapsed { display: none; }
 
         .node-row { 
             display: flex; align-items: center; padding: 4px 10px; cursor: pointer; 
@@ -35,96 +36,91 @@
         .node-row:hover { background: var(--hover); }
         .node-row.active { background: var(--active); border-left-color: var(--accent); }
         
-        .toggle-icon { 
-            width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; 
-            margin-right: 5px; font-size: 10px; color: #888; cursor: pointer;
-        }
-        .toggle-icon:hover { color: #fff; }
-        
-        .node-title-input {
-            background: transparent; border: none; color: inherit; font-family: inherit; font-size: inherit;
-            width: 100%; outline: none; padding: 2px;
-        }
-        .node-title-input:focus { background: #3c3c3c; border-radius: 3px; }
+        .toggle-icon { width: 16px; text-align: center; margin-right: 5px; color: #888; font-size: 10px; }
+        .node-title-input { background: transparent; border: none; color: inherit; font-family: inherit; width: 100%; outline: none; }
+        .node-title-input:focus { background: #3c3c3c; }
 
-        /* Кнопки управления деревом */
         .tree-controls { padding: 10px; border-top: 1px solid var(--border-color); display: flex; gap: 5px; }
-        .btn-sm { 
-            flex: 1; padding: 6px; background: #3c3c3c; border: none; color: white; 
-            border-radius: 4px; cursor: pointer; font-size: 12px; 
-        }
+        .btn-sm { flex: 1; padding: 6px; background: #3c3c3c; border: none; color: white; border-radius: 4px; cursor: pointer; font-size: 12px; }
         .btn-sm:hover { background: #4c4c4c; }
 
-        /* Редактор (Справа) */
+        /* Редактор и Превью */
         .editor-area { flex-grow: 1; display: flex; flex-direction: column; position: relative; }
-        .toolbar { padding: 10px; background: #2d2d2d; border-bottom: 1px solid var(--border-color); display: flex; gap: 10px; }
+        .toolbar { padding: 10px; background: #2d2d2d; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; }
         
         textarea { 
             flex-grow: 1; background: var(--bg-dark); color: var(--text-main); border: none; 
-            resize: none; padding: 20px; font-family: 'Consolas', monospace; font-size: 14px; outline: none; line-height: 1.6;
+            resize: none; padding: 20px; font-family: 'Consolas', monospace; font-size: 14px; outline: none; line-height: 1.6; tab-size: 4;
         }
 
-        #preview { flex-grow: 1; padding: 20px; overflow: auto; display: none; }
-        pre { margin: 0; background: transparent !important; }
+        /* Стили для отрендеренного Markdown */
+        #preview { 
+            flex-grow: 1; padding: 30px 50px; overflow: auto; display: none; 
+            color: #c9d1d9; line-height: 1.6; font-size: 16px;
+        }
+        
+        /* Типографика Markdown */
+        #preview h1, #preview h2, #preview h3 { color: #fff; border-bottom: 1px solid #333; padding-bottom: 5px; margin-top: 30px; }
+        #preview h1 { font-size: 2em; }
+        #preview h2 { font-size: 1.5em; }
+        #preview a { color: var(--accent); text-decoration: none; }
+        #preview a:hover { text-decoration: underline; }
+        #preview blockquote { border-left: 4px solid var(--accent); margin: 0; padding-left: 15px; color: #8b949e; }
+        #preview code { background: #2d2d2d; padding: 2px 5px; border-radius: 4px; font-family: monospace; font-size: 0.9em; }
+        
+        /* Блоки кода */
+        #preview pre { 
+            background: #161b22 !important; border: 1px solid #30363d; border-radius: 6px; 
+            padding: 15px; overflow-x: auto; 
+        }
+        #preview pre code { background: transparent; padding: 0; color: inherit; }
 
-        .status-bar { padding: 5px 15px; background: var(--accent); color: white; font-size: 12px; display: flex; justify-content: space-between; }
+        .status-bar { padding: 5px 15px; background: var(--accent); color: white; font-size: 12px; }
     </style>
 </head>
 <body>
 
 <div class="sidebar">
-    <div class="sidebar-header">
-        <span>Структура</span>
-    </div>
-    
-    <div class="tree-container" id="treeRoot">
-        <!-- Дерево генерируется JS -->
-    </div>
-
+    <div class="sidebar-header">Структура</div>
+    <div class="tree-container" id="treeRoot"></div>
     <div class="tree-controls">
-        <button class="btn-sm" onclick="addChild()" title="Добавить подпункт (Tab)">➕ Вложить</button>
-        <button class="btn-sm" onclick="addSibling()" title="Добавить рядом (Enter)">➕ Рядом</button>
-        <button class="btn-sm" onclick="deleteNode()" style="background:#ce3939" title="Удалить (Del)">🗑</button>
+        <button class="btn-sm" onclick="addChild()">➕ Вложить (Tab)</button>
+        <button class="btn-sm" onclick="addSibling()">➕ Рядом (Enter)</button>
+        <button class="btn-sm" onclick="deleteNode()" style="background:#ce3939">🗑 Удалить</button>
     </div>
 </div>
 
 <div class="editor-area">
     <div class="toolbar">
-        <button class="btn-sm" style="flex:0; width:auto; padding: 6px 15px;" onclick="toggleMode()">👁 Просмотр</button>
-        <span style="color:#888; font-size:12px; align-self:center;">Markdown / Code Supported</span>
+        <span style="font-weight:bold; color:#fff;">Markdown Editor</span>
+        <button class="btn-sm" style="width:auto; padding: 6px 15px;" onclick="toggleMode()">👁 Переключить вид</button>
     </div>
     
-    <textarea id="codeEditor" placeholder="Выберите узел или создайте новый..." oninput="saveCurrent()"></textarea>
+    <textarea id="codeEditor" placeholder="# Привет!&#10;Пиши здесь Markdown...&#10;&#10;```cpp&#10;int main() { return 0; }&#10;```" oninput="saveCurrent()"></textarea>
     <div id="preview"></div>
 
-    <div class="status-bar">
-        <span id="status">Готово</span>
-        <span id="pathDisplay"></span>
-    </div>
+    <div class="status-bar" id="status">Готово</div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+<!-- Библиотеки -->
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
 
 <script>
-    // === ДАННЫЕ И СОСТОЯНИЕ ===
-    // Структура: массив объектов { id, title, content, children: [], collapsed: false }
-    let data = JSON.parse(localStorage.getItem('treeOutlinerData')) || [
+    // === ДАННЫЕ ===
+    let data = JSON.parse(localStorage.getItem('mdTreeData')) || [
         { 
-            id: 1, title: 'Проект', content: '# Описание проекта\nЗдесь основной текст.', collapsed: false,
+            id: 1, title: 'Пример C++', content: '# Алгоритм\nОписание задачи.\n\n```cpp\n#include <iostream>\n\nint main() {\n    std::cout << "Hello World!";\n    return 0;\n}\n```', collapsed: false,
             children: [
-                { id: 2, title: 'Идеи', content: '- Сделать круто\n- Быстро', collapsed: false, children: [] },
-                { id: 3, title: 'Код', content: 'console.log("Hello");', collapsed: false, children: [] }
+                { id: 2, title: 'Заметки', content: '- Купить молоко\n- Почитать документацию', collapsed: false, children: [] }
             ] 
         }
     ];
 
-    let activeId = 1; // ID активного узла
+    let activeId = 1;
     let isPreviewMode = false;
 
     // === ЛОГИКА ДЕРЕВА ===
-    
-    // Поиск узла по ID (рекурсивно)
     function findNode(id, nodes = data) {
         for (let node of nodes) {
             if (node.id === id) return node;
@@ -136,7 +132,6 @@
         return null;
     }
 
-    // Поиск родителя узла
     function findParent(id, nodes = data, parent = null) {
         for (let node of nodes) {
             if (node.id === id) return parent;
@@ -148,143 +143,87 @@
         return null;
     }
 
-    // Отрисовка дерева
     function renderTree() {
         const root = document.getElementById('treeRoot');
         root.innerHTML = '';
         const ul = document.createElement('ul');
         ul.className = 'tree';
-        
-        data.forEach(node => {
-            ul.appendChild(createNodeElement(node));
-        });
+        data.forEach(node => ul.appendChild(createNodeElement(node)));
         root.appendChild(ul);
-        
-        updatePath();
     }
 
     function createNodeElement(node) {
         const li = document.createElement('li');
-        
-        // Строка узла
         const row = document.createElement('div');
         row.className = `node-row ${node.id === activeId ? 'active' : ''}`;
-        row.onclick = (e) => {
-            if(e.target.className !== 'toggle-icon') selectNode(node.id);
-        };
+        row.onclick = (e) => { if(e.target.className !== 'toggle-icon' && e.target.tagName !== 'INPUT') selectNode(node.id); };
 
-        // Иконка сворачивания
         const toggle = document.createElement('span');
         toggle.className = 'toggle-icon';
         if (node.children.length > 0) {
             toggle.textContent = node.collapsed ? '▶' : '▼';
-            toggle.onclick = (e) => {
-                e.stopPropagation();
-                node.collapsed = !node.collapsed;
-                saveToStorage();
-                renderTree();
-            };
-        } else {
-            toggle.textContent = '•'; // Пустой узел
-            toggle.style.opacity = '0.3';
-        }
+            toggle.onclick = (e) => { e.stopPropagation(); node.collapsed = !node.collapsed; saveToStorage(); renderTree(); };
+        } else { toggle.textContent = '•'; toggle.style.opacity = '0.3'; }
         row.appendChild(toggle);
 
-        // Название (редактируемое)
         const input = document.createElement('input');
         input.className = 'node-title-input';
         input.value = node.title;
         input.onchange = () => { node.title = input.value; saveToStorage(); };
         input.onkeydown = (e) => {
-            if (e.key === 'Enter') { e.preventDefault(); addSibling(); } // Enter -> новый сосед
-            if (e.key === 'Tab') { e.preventDefault(); addChild(); }     // Tab -> вложить
+            if (e.key === 'Enter') { e.preventDefault(); addSibling(); }
+            if (e.key === 'Tab') { e.preventDefault(); addChild(); }
         };
         row.appendChild(input);
-
         li.appendChild(row);
 
-        // Дети
         if (node.children.length > 0) {
             const childUl = document.createElement('ul');
             if (node.collapsed) childUl.className = 'collapsed';
-            
-            node.children.forEach(child => {
-                childUl.appendChild(createNodeElement(child));
-            });
+            node.children.forEach(child => childUl.appendChild(createNodeElement(child)));
             li.appendChild(childUl);
         }
-
         return li;
     }
 
     // === УПРАВЛЕНИЕ ===
-
     function selectNode(id) {
-        saveCurrent(); // Сохраняем текущий перед переключением
+        saveCurrent();
         activeId = id;
         const node = findNode(id);
         document.getElementById('codeEditor').value = node.content;
-        updatePreview();
-        renderTree(); // Перерисовать, чтобы обновить подсветку active
+        if(isPreviewMode) updatePreview();
+        renderTree();
     }
 
     function addChild() {
         const parent = findNode(activeId);
-        if (!parent) return;
-        
         const newNode = { id: Date.now(), title: 'Новый пункт', content: '', children: [], collapsed: false };
         parent.children.push(newNode);
-        parent.collapsed = false; // Раскрыть родителя
-        
-        saveToStorage();
-        renderTree();
-        selectNode(newNode.id);
-        
-        // Фокус на название нового узла
-        setTimeout(() => {
-            const inputs = document.querySelectorAll('.node-title-input');
-            inputs[inputs.length-1].focus();
-            inputs[inputs.length-1].select();
-        }, 50);
+        parent.collapsed = false;
+        saveToStorage(); renderTree(); selectNode(newNode.id);
+        setTimeout(() => document.querySelector('.node-row.active input').focus(), 50);
     }
 
     function addSibling() {
         const parent = findParent(activeId);
-        // Если родителя нет, значит мы в корне
         const list = parent ? parent.children : data;
         const index = list.findIndex(n => n.id === activeId);
-        
         const newNode = { id: Date.now(), title: 'Новый пункт', content: '', children: [], collapsed: false };
         list.splice(index + 1, 0, newNode);
-        
-        saveToStorage();
-        renderTree();
-        selectNode(newNode.id);
-        
-        setTimeout(() => {
-             const inputs = document.querySelectorAll('.node-title-input');
-             // Находим нужный инпут сложнее, но для простоты возьмем последний активный
-             // В реальном проекте лучше искать по ID
-             document.querySelector('.node-row.active input').focus();
-        }, 50);
+        saveToStorage(); renderTree(); selectNode(newNode.id);
+        setTimeout(() => document.querySelector('.node-row.active input').focus(), 50);
     }
 
     function deleteNode() {
-        if (data.length === 1 && data[0].children.length === 0) {
-            alert("Нельзя удалить единственный корень!"); return;
-        }
-        
+        if (data.length === 1 && data[0].children.length === 0) return;
         const parent = findParent(activeId);
         const list = parent ? parent.children : data;
         const index = list.findIndex(n => n.id === activeId);
-        
-        if (confirm(`Удалить "${list[index].title}" и всех его детей?`)) {
+        if (confirm('Удалить узел?')) {
             list.splice(index, 1);
-            // Переключаемся на соседа или родителя
             const nextId = list[index] ? list[index].id : (parent ? parent.id : data[0].id);
-            saveToStorage();
-            renderTree();
-            selectNode(nextId);
+            saveToStorage(); renderTree(); selectNode(nextId);
         }
     }
 
@@ -298,17 +237,11 @@
     }
 
     function saveToStorage() {
-        localStorage.setItem('treeOutlinerData', JSON.stringify(data));
+        localStorage.setItem('mdTreeData', JSON.stringify(data));
         document.getElementById('status').textContent = 'Сохранено';
     }
 
-    function updatePath() {
-        // Простая реализация хлебных крошек
-        // Можно улучшить, собирая путь рекурсивно
-        document.getElementById('pathDisplay').textContent = "ID: " + activeId;
-    }
-
-    // === ПРОСМОТР ===
+    // === MARKDOWN & PREVIEW ===
     function toggleMode() {
         isPreviewMode = !isPreviewMode;
         const editor = document.getElementById('codeEditor');
@@ -326,16 +259,21 @@
 
     function updatePreview() {
         const node = findNode(activeId);
-        const code = node.content;
-        const escapedCode = code.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-        document.getElementById('preview').innerHTML = `<pre><code class="language-javascript">${escapedCode}</code></pre>`;
-        Prism.highlightAll();
+        const rawText = node.content;
+        
+        // Конвертируем Markdown в HTML
+        const htmlContent = marked.parse(rawText);
+        document.getElementById('preview').innerHTML = htmlContent;
+        
+        // Применяем подсветку синтаксиса ко всем блокам <pre><code>
+        document.querySelectorAll('pre code').forEach((el) => {
+            hljs.highlightElement(el);
+        });
     }
 
     // Старт
     renderTree();
     selectNode(activeId);
-
 </script>
 </body>
 </html>
