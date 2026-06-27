@@ -105,6 +105,7 @@
     <div id="preview"></div>
 
     <div class="status-bar" id="status">Готово</div>
+    <span id="storageInfo"></span>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -125,6 +126,22 @@
     let isPreviewMode = false;
     let saveTimeout = null;
 
+    function updateStorageInfo() {
+    const dataStr = localStorage.getItem('mdTreeData') || '';
+    const usedBytes = new Blob([dataStr]).size;
+    const limitBytes = 5 * 1024 * 1024; // 5 МБ (средний лимит)
+    const percent = ((usedBytes / limitBytes) * 100).toFixed(2);
+    
+    let color = '#4caf50'; // зелёный
+    if (percent > 70) color = '#ff9800'; // оранжевый
+    if (percent > 90) color = '#f44336'; // красный
+    
+    const info = document.getElementById('storageInfo');
+    if (info) {
+        info.innerHTML = `💾 ${(usedBytes/1024).toFixed(1)} КБ / 5 МБ (${percent}%)`;
+        info.style.color = color;
+    }
+}
     // === УТИЛИТЫ ДЕРЕВА ===
     function findNode(id, nodes = data) {
         for (let node of nodes) {
@@ -330,15 +347,15 @@
         }
     }
 
-    function saveToStorage() {
-        try {
-            localStorage.setItem('mdTreeData', JSON.stringify(data));
-            document.getElementById('status').textContent = '💾 Сохранено';
-        } catch (e) {
-            console.error('Ошибка сохранения:', e);
-            document.getElementById('status').textContent = '⚠️ Ошибка хранилища!';
-        }
+function saveToStorage() {
+    try {
+        localStorage.setItem('mdTreeData', JSON.stringify(data));
+        document.getElementById('status').textContent = '💾 Сохранено';
+        updateStorageInfo(); // ← добавь эту строку
+    } catch (e) {
+        document.getElementById('status').textContent = '⚠️ Хранилище переполнено!';
     }
+}
 
     function debounceSave() {
         if (saveTimeout) clearTimeout(saveTimeout);
