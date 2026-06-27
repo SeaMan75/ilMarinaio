@@ -2,10 +2,8 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Markdown Аутлайнер (Оптимизированный)</title>
-    
+    <title>Markdown Аутлайнер (Pro UX)</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/atom-one-dark.min.css">
-    
     <style>
         :root {
             --bg-dark: #1e1e1e;
@@ -19,26 +17,39 @@
 
         body { margin: 0; font-family: 'Segoe UI', sans-serif; background: var(--bg-dark); color: var(--text-main); display: flex; height: 100vh; overflow: hidden; }
         
-        .sidebar { width: 300px; background: var(--sidebar-bg); border-right: 1px solid var(--border-color); display: flex; flex-direction: column; user-select: none; }
-        .sidebar-header { padding: 15px; font-weight: bold; border-bottom: 1px solid var(--border-color); background: #333; }
+        .sidebar { width: 320px; background: var(--sidebar-bg); border-right: 1px solid var(--border-color); display: flex; flex-direction: column; user-select: none; }
+        .sidebar-header { padding: 12px 15px; font-weight: bold; border-bottom: 1px solid var(--border-color); background: #333; font-size: 14px; }
         .tree-container { flex-grow: 1; overflow-y: auto; padding: 10px 0; }
         
         ul.tree { list-style: none; padding-left: 0; margin: 0; }
-        ul.tree ul { list-style: none; padding-left: 20px; margin: 0; display: block; border-left: 1px solid #333; }
+        ul.tree ul { list-style: none; padding-left: 18px; margin: 0; display: block; border-left: 1px dashed #444; }
         ul.tree ul.collapsed { display: none; }
 
         .node-row { 
-            display: flex; align-items: center; padding: 4px 10px; cursor: pointer; 
+            display: flex; align-items: center; padding: 5px 10px; cursor: pointer; 
             border-left: 3px solid transparent; transition: 0.1s; font-size: 14px;
         }
         .node-row:hover { background: var(--hover); }
         .node-row.active { background: var(--active); border-left-color: var(--accent); }
         
-        .toggle-icon { width: 16px; text-align: center; margin-right: 5px; color: #888; font-size: 10px; cursor: pointer; }
-        .node-title-input { background: transparent; border: none; color: inherit; font-family: inherit; width: 100%; outline: none; }
-        .node-title-input:focus { background: #3c3c3c; }
+        .toggle-icon { width: 16px; text-align: center; margin-right: 5px; color: #888; font-size: 10px; cursor: pointer; flex-shrink: 0; }
+        .toggle-icon:hover { color: #fff; }
+        
+        .node-title { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 5px; }
+        
+        .edit-icon { 
+            cursor: pointer; opacity: 0; transition: opacity 0.2s; padding: 2px 5px; font-size: 12px; color: #aaa; 
+        }
+        .node-row:hover .edit-icon, .node-row.active .edit-icon { opacity: 1; }
+        .edit-icon:hover { color: #fff; }
 
-        .tree-controls { padding: 10px; border-top: 1px solid var(--border-color); display: flex; gap: 5px; }
+        .node-title-input { 
+            background: #2d2d2d; border: 1px solid var(--accent); color: inherit; font-family: inherit; font-size: inherit;
+            width: 100%; padding: 2px 5px; border-radius: 4px; outline: none; display: none;
+        }
+
+        .tree-controls { padding: 10px; border-top: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #888; }
+        .shortcut-hint { background: #2d2d2d; padding: 6px 8px; border-radius: 4px; margin-bottom: 8px; line-height: 1.4; }
         .btn-sm { flex: 1; padding: 6px; background: #3c3c3c; border: none; color: white; border-radius: 4px; cursor: pointer; font-size: 12px; }
         .btn-sm:hover { background: #4c4c4c; }
 
@@ -54,19 +65,13 @@
             flex-grow: 1; padding: 30px 50px; overflow: auto; display: none; 
             color: #c9d1d9; line-height: 1.6; font-size: 16px;
         }
-        
         #preview h1, #preview h2, #preview h3 { color: #fff; border-bottom: 1px solid #333; padding-bottom: 5px; margin-top: 30px; }
         #preview h1 { font-size: 2em; }
         #preview h2 { font-size: 1.5em; }
         #preview a { color: var(--accent); text-decoration: none; }
-        #preview a:hover { text-decoration: underline; }
         #preview blockquote { border-left: 4px solid var(--accent); margin: 0; padding-left: 15px; color: #8b949e; }
         #preview code { background: #2d2d2d; padding: 2px 5px; border-radius: 4px; font-family: monospace; font-size: 0.9em; }
-        
-        #preview pre { 
-            background: #161b22 !important; border: 1px solid #30363d; border-radius: 6px; 
-            padding: 15px; overflow-x: auto; 
-        }
+        #preview pre { background: #161b22 !important; border: 1px solid #30363d; border-radius: 6px; padding: 15px; overflow-x: auto; }
         #preview pre code { background: transparent; padding: 0; color: inherit; }
 
         .status-bar { padding: 5px 15px; background: var(--accent); color: white; font-size: 12px; }
@@ -75,12 +80,18 @@
 <body>
 
 <div class="sidebar">
-    <div class="sidebar-header">Структура</div>
+    <div class="sidebar-header">📂 Структура проекта</div>
     <div class="tree-container" id="treeRoot"></div>
     <div class="tree-controls">
-        <button class="btn-sm" onclick="addChild()">➕ Вложить (Tab)</button>
-        <button class="btn-sm" onclick="addSibling()">➕ Рядом (Enter)</button>
-        <button class="btn-sm" onclick="deleteNode()" style="background:#ce3939">🗑 Удалить</button>
+        <div class="shortcut-hint">
+            ↵ Новая ветка &nbsp;|&nbsp; ⇧↵ Вложить<br>
+            ✏️ Переименовать &nbsp;|&nbsp; Del Удалить
+        </div>
+        <div style="display:flex; gap:5px;">
+            <button class="btn-sm" onclick="addChild()">➕ Вложить</button>
+            <button class="btn-sm" onclick="addSibling()">➕ Рядом</button>
+            <button class="btn-sm" onclick="deleteNode()" style="background:#ce3939">🗑 Удалить</button>
+        </div>
     </div>
 </div>
 
@@ -90,7 +101,7 @@
         <button class="btn-sm" style="width:auto; padding: 6px 15px;" onclick="toggleMode()">👁 Переключить вид</button>
     </div>
     
-    <textarea id="codeEditor" placeholder="# Привет!&#10;Пиши здесь Markdown...&#10;&#10;```cpp&#10;int main() { return 0; }&#10;```" oninput="onContentChange()"></textarea>
+    <textarea id="codeEditor" placeholder="# Заголовок&#10;&#10;Пиши Markdown или код...&#10;&#10;```cpp&#10;int x = 10;&#10;```" oninput="onContentChange()"></textarea>
     <div id="preview"></div>
 
     <div class="status-bar" id="status">Готово</div>
@@ -100,29 +111,21 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
 
 <script>
-    // === ДАННЫЕ ===
+    // === СОСТОЯНИЕ ===
     let data = JSON.parse(localStorage.getItem('mdTreeData')) || [
-        { 
-            id: 1, title: 'Пример C++', content: '# Алгоритм\nОписание задачи.\n\n```cpp\n#include <iostream>\n\nint main() {\n    std::cout << "Hello World!";\n    return 0;\n}\n```', collapsed: false,
+        { id: 1, title: '📌 Пример C++', content: '# Алгоритм поиска\nОписание задачи.\n\n```cpp\n#include <iostream>\n\nint main() {\n    std::cout << "Hello!";\n    return 0;\n}\n```', collapsed: false,
             children: [
-                { id: 2, title: 'Заметки', content: '- Купить молоко\n- Почитать документацию', collapsed: false, children: [] }
+                { id: 2, title: '📝 Заметки', content: '- Изучить синтаксис\n- Протестировать на данных', collapsed: false, children: [] }
             ] 
         }
     ];
 
     let activeId = 1;
+    let editingId = null;
     let isPreviewMode = false;
     let saveTimeout = null;
 
-    // === DEBOUNCE ДЛЯ СОХРАНЕНИЯ ===
-    function debounceSave() {
-        if (saveTimeout) clearTimeout(saveTimeout);
-        saveTimeout = setTimeout(() => {
-            saveToStorage();
-        }, 500); // Сохраняем через 500мс после последнего изменения
-    }
-
-    // === ЛОГИКА ДЕРЕВА ===
+    // === УТИЛИТЫ ДЕРЕВА ===
     function findNode(id, nodes = data) {
         for (let node of nodes) {
             if (node.id === id) return node;
@@ -145,6 +148,7 @@
         return null;
     }
 
+    // === ОТРИСОВКА ===
     function renderTree() {
         const root = document.getElementById('treeRoot');
         root.innerHTML = '';
@@ -152,50 +156,57 @@
         ul.className = 'tree';
         data.forEach(node => ul.appendChild(createNodeElement(node)));
         root.appendChild(ul);
+        updateActiveNodeInTree();
     }
 
     function createNodeElement(node) {
         const li = document.createElement('li');
         const row = document.createElement('div');
         row.className = `node-row ${node.id === activeId ? 'active' : ''}`;
-        row.dataset.id = node.id; // Сохраняем ID для быстрого поиска
-        
-        row.onclick = (e) => { 
-            if(e.target.className !== 'toggle-icon' && e.target.tagName !== 'INPUT') {
-                selectNode(node.id);
-            }
-        };
+        row.dataset.id = node.id;
 
+        // Сворачивание
         const toggle = document.createElement('span');
         toggle.className = 'toggle-icon';
         if (node.children.length > 0) {
             toggle.textContent = node.collapsed ? '▶' : '▼';
-            toggle.onclick = (e) => { 
-                e.stopPropagation(); 
-                node.collapsed = !node.collapsed; 
-                saveToStorage(); 
-                renderTree(); 
-            };
-        } else { 
-            toggle.textContent = '•'; 
-            toggle.style.opacity = '0.3'; 
-        }
+            toggle.onclick = (e) => { e.stopPropagation(); node.collapsed = !node.collapsed; saveToStorage(); renderTree(); };
+        } else { toggle.textContent = '•'; toggle.style.opacity = '0.3'; }
         row.appendChild(toggle);
 
+        // Название (текст)
+        const titleSpan = document.createElement('span');
+        titleSpan.className = 'node-title';
+        titleSpan.textContent = node.title;
+        row.appendChild(titleSpan);
+
+        // Иконка редактирования
+        const editIcon = document.createElement('span');
+        editIcon.className = 'edit-icon';
+        editIcon.textContent = '✏️';
+        editIcon.onclick = (e) => { e.stopPropagation(); startEditing(node.id); };
+        row.appendChild(editIcon);
+
+        // Поле ввода (скрыто)
         const input = document.createElement('input');
         input.className = 'node-title-input';
         input.value = node.title;
-        input.onchange = () => { 
-            node.title = input.value; 
-            debounceSave(); 
-        };
+        input.onblur = () => finishEditing(node.id, true);
         input.onkeydown = (e) => {
-            if (e.key === 'Enter') { e.preventDefault(); addSibling(); }
-            if (e.key === 'Tab') { e.preventDefault(); addChild(); }
+            if (e.key === 'Enter') { e.preventDefault(); finishEditing(node.id, true); }
+            if (e.key === 'Escape') { e.preventDefault(); finishEditing(node.id, false); }
         };
         row.appendChild(input);
+
+        // Клик по строке выбирает узел
+        row.onclick = (e) => {
+            if (e.target === editIcon || e.target === input) return;
+            selectNode(node.id);
+        };
+
         li.appendChild(row);
 
+        // Дети
         if (node.children.length > 0) {
             const childUl = document.createElement('ul');
             if (node.collapsed) childUl.className = 'collapsed';
@@ -205,55 +216,84 @@
         return li;
     }
 
-    // === ОБНОВЛЕНИЕ ТОЛЬКО АКТИВНОГО УЗЛА ===
     function updateActiveNodeInTree() {
-        // Убираем active со всех
         document.querySelectorAll('.node-row.active').forEach(el => el.classList.remove('active'));
-        // Добавляем active к текущему
-        const row = document.querySelector(`.node-row[data-id="${activeId}"]`);
-        if (row) row.classList.add('active');
+        const activeRow = document.querySelector(`.node-row[data-id="${activeId}"]`);
+        if (activeRow) activeRow.classList.add('active');
     }
 
-    // === УПРАВЛЕНИЕ ===
-    function selectNode(id) {
-        if (id === activeId) return; // Уже выбран
+    // === РЕДАКТИРОВАНИЕ ИМЕНИ ===
+    function startEditing(id) {
+        if (editingId) finishEditing(editingId, true);
+        editingId = id;
+        const row = document.querySelector(`.node-row[data-id="${id}"]`);
+        if (!row) return;
         
-        saveCurrent(); // Сохраняем текущий
+        row.querySelector('.node-title').style.display = 'none';
+        row.querySelector('.edit-icon').style.display = 'none';
+        const input = row.querySelector('.node-title-input');
+        input.style.display = 'block';
+        input.focus();
+        input.select();
+    }
+
+    function finishEditing(id, save) {
+        if (editingId !== id) return;
+        const row = document.querySelector(`.node-row[data-id="${id}"]`);
+        if (!row) return;
+        
+        const node = findNode(id);
+        const input = row.querySelector('.node-title-input');
+        const titleSpan = row.querySelector('.node-title');
+        const editIcon = row.querySelector('.edit-icon');
+
+        if (save) {
+            const newName = input.value.trim() || 'Без названия';
+            node.title = newName;
+            titleSpan.textContent = newName;
+            debounceSave();
+        } else {
+            input.value = node.title;
+        }
+
+        input.style.display = 'none';
+        titleSpan.style.display = 'block';
+        editIcon.style.display = 'inline-block';
+        editingId = null;
+    }
+
+    // === ВЫБОР И СОДЕРЖИМОЕ ===
+    function selectNode(id) {
+        if (editingId) finishEditing(editingId, true);
+        if (id === activeId) return;
+        
         activeId = id;
         const node = findNode(id);
         if (!node) return;
         
         document.getElementById('codeEditor').value = node.content;
         if(isPreviewMode) updatePreview();
-        
-        updateActiveNodeInTree(); // Обновляем только класс active, не перерисовывая всё дерево
+        updateActiveNodeInTree();
     }
 
     function onContentChange() {
         const node = findNode(activeId);
         if (node) {
             node.content = document.getElementById('codeEditor').value;
-            debounceSave(); // Сохраняем с задержкой
+            debounceSave();
             if(isPreviewMode) updatePreview();
         }
     }
 
+    // === СТРУКТУРНЫЕ ДЕЙСТВИЯ ===
     function addChild() {
         const parent = findNode(activeId);
         if (!parent) return;
-        
         const newNode = { id: Date.now(), title: 'Новый пункт', content: '', children: [], collapsed: false };
         parent.children.push(newNode);
         parent.collapsed = false;
-        
-        saveToStorage(); 
-        renderTree(); 
-        selectNode(newNode.id);
-        
-        setTimeout(() => {
-            const input = document.querySelector(`.node-row[data-id="${newNode.id}"] input`);
-            if (input) { input.focus(); input.select(); }
-        }, 50);
+        saveToStorage(); renderTree(); selectNode(newNode.id);
+        startEditing(newNode.id); // Сразу предлагаем переименовать
     }
 
     function addSibling() {
@@ -264,33 +304,21 @@
         
         const newNode = { id: Date.now(), title: 'Новый пункт', content: '', children: [], collapsed: false };
         list.splice(index + 1, 0, newNode);
-        
-        saveToStorage(); 
-        renderTree(); 
-        selectNode(newNode.id);
-        
-        setTimeout(() => {
-            const input = document.querySelector(`.node-row[data-id="${newNode.id}"] input`);
-            if (input) { input.focus(); input.select(); }
-        }, 50);
+        saveToStorage(); renderTree(); selectNode(newNode.id);
+        startEditing(newNode.id);
     }
 
     function deleteNode() {
         if (data.length === 1 && data[0].children.length === 0) {
-            alert("Нельзя удалить единственный корень!");
-            return;
+            alert("Нельзя удалить единственный корень!"); return;
         }
-        
         const parent = findParent(activeId);
         const list = parent ? parent.children : data;
         const index = list.findIndex(n => n.id === activeId);
-        
         if (confirm(`Удалить "${list[index].title}" и всех его детей?`)) {
             list.splice(index, 1);
             const nextId = list[index] ? list[index].id : (parent ? parent.id : data[0].id);
-            saveToStorage(); 
-            renderTree(); 
-            selectNode(nextId);
+            saveToStorage(); renderTree(); selectNode(nextId);
         }
     }
 
@@ -305,43 +333,56 @@
     function saveToStorage() {
         try {
             localStorage.setItem('mdTreeData', JSON.stringify(data));
-            document.getElementById('status').textContent = 'Сохранено: ' + new Date().toLocaleTimeString();
+            document.getElementById('status').textContent = '💾 Сохранено';
         } catch (e) {
             console.error('Ошибка сохранения:', e);
-            document.getElementById('status').textContent = 'Ошибка сохранения!';
+            document.getElementById('status').textContent = '⚠️ Ошибка хранилища!';
         }
     }
 
-    // === MARKDOWN & PREVIEW ===
+    function debounceSave() {
+        if (saveTimeout) clearTimeout(saveTimeout);
+        saveTimeout = setTimeout(saveToStorage, 400);
+    }
+
+    // === ГОРЯЧИЕ КЛАВИШИ ===
+    document.addEventListener('keydown', (e) => {
+        if (editingId) return; // Пусть инпут сам обрабатывает Enter/Esc
+        if (!activeId) return;
+
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            if (e.shiftKey) addChild();
+            else addSibling();
+        }
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+            if (document.activeElement.tagName !== 'TEXTAREA') {
+                e.preventDefault();
+                deleteNode();
+            }
+        }
+    });
+
+    // === PREVIEW ===
     function toggleMode() {
         isPreviewMode = !isPreviewMode;
         const editor = document.getElementById('codeEditor');
         const preview = document.getElementById('preview');
-        
         if (isPreviewMode) {
-            editor.style.display = 'none';
-            preview.style.display = 'block';
-            updatePreview();
+            editor.style.display = 'none'; preview.style.display = 'block'; updatePreview();
         } else {
-            editor.style.display = 'block';
-            preview.style.display = 'none';
+            editor.style.display = 'block'; preview.style.display = 'none';
         }
     }
 
     function updatePreview() {
         const node = findNode(activeId);
         if (!node) return;
-        
-        const rawText = node.content;
-        const htmlContent = marked.parse(rawText);
-        document.getElementById('preview').innerHTML = htmlContent;
-        
-        document.querySelectorAll('pre code').forEach((el) => {
-            hljs.highlightElement(el);
-        });
+        document.getElementById('preview').innerHTML = marked.parse(node.content);
+        document.querySelectorAll('pre code').forEach(el => hljs.highlightElement(el));
     }
 
-    // Старт
+    // Инициализация
     renderTree();
     selectNode(activeId);
 </script>
