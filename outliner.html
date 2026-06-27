@@ -216,15 +216,24 @@
         row.appendChild(editIcon);
 
         // Поле ввода (скрыто)
-        const input = document.createElement('input');
-        input.className = 'node-title-input';
-        input.value = node.title;
-        input.onblur = () => finishEditing(node.id, true);
-        input.onkeydown = (e) => {
-            if (e.key === 'Enter') { e.preventDefault(); finishEditing(node.id, true); }
-            if (e.key === 'Escape') { e.preventDefault(); finishEditing(node.id, false); }
-        };
-        row.appendChild(input);
+// Поле ввода (скрыто)
+const input = document.createElement('input');
+input.className = 'node-title-input';
+input.value = node.title;
+input.onblur = () => finishEditing(node.id, true);
+input.onkeydown = (e) => {
+    if (e.key === 'Enter') { 
+        e.preventDefault(); 
+        e.stopPropagation(); // ← ВАЖНО: не даём событию всплыть
+        finishEditing(node.id, true); 
+    }
+    if (e.key === 'Escape') { 
+        e.preventDefault(); 
+        e.stopPropagation(); // ← ВАЖНО
+        finishEditing(node.id, false); 
+    }
+};
+row.appendChild(input);
 
         // Клик по строке выбирает узел
         row.onclick = (e) => {
@@ -374,22 +383,24 @@ function saveToStorage() {
     }
 
     // === ГОРЯЧИЕ КЛАВИШИ ===
-    document.addEventListener('keydown', (e) => {
-        if (editingId) return; // Пусть инпут сам обрабатывает Enter/Esc
-        if (!activeId) return;
+document.addEventListener('keydown', (e) => {
+    // Защита: если фокус в любом input (редактирование имени или что-то ещё)
+    if (document.activeElement.tagName === 'INPUT') return;
+    if (editingId) return;
+    if (!activeId) return;
 
-        if (e.key === 'Enter') {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        if (e.shiftKey) addChild();
+        else addSibling();
+    }
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (document.activeElement.tagName !== 'TEXTAREA') {
             e.preventDefault();
-            if (e.shiftKey) addChild();
-            else addSibling();
+            deleteNode();
         }
-        if (e.key === 'Delete' || e.key === 'Backspace') {
-            if (document.activeElement.tagName !== 'TEXTAREA') {
-                e.preventDefault();
-                deleteNode();
-            }
-        }
-    });
+    }
+});
 
     // === PREVIEW ===
     function toggleMode() {
@@ -413,6 +424,9 @@ function saveToStorage() {
     // Инициализация
     renderTree();
     selectNode(activeId);
+    updateStorageInfo();
+
+    
 </script>
 </body>
 </html>
