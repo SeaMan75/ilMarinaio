@@ -61,6 +61,12 @@
       color: var(--primary-color);
     }
 
+    .header-controls {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
     #themeToggle {
       background: none;
       border: 2px solid var(--primary-color);
@@ -69,6 +75,81 @@
       border-radius: 20px;
       cursor: pointer;
       font-size: 18px;
+    }
+
+    /* Бургер-меню */
+    .burger-menu {
+      display: none;
+      background: none;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      color: var(--primary-color);
+      padding: 5px 10px;
+    }
+
+    /* Мобильное меню */
+    .mobile-nav {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: var(--card-bg);
+      z-index: 200;
+      padding: 60px 20px 20px;
+      overflow-y: auto;
+    }
+
+    .mobile-nav.active {
+      display: block;
+    }
+
+    .mobile-nav-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 30px;
+      padding-bottom: 15px;
+      border-bottom: 2px solid var(--accent-color);
+    }
+
+    .mobile-nav-header h2 {
+      margin: 0;
+      color: var(--primary-color);
+      font-family: 'Merriweather', serif;
+    }
+
+    .close-menu {
+      background: none;
+      border: none;
+      font-size: 28px;
+      cursor: pointer;
+      color: var(--primary-color);
+    }
+
+    .mobile-nav ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    .mobile-nav li {
+      margin-bottom: 15px;
+    }
+
+    .mobile-nav a {
+      display: block;
+      padding: 12px 15px;
+      background: var(--bg-color);
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 500;
+    }
+
+    .mobile-nav a:hover {
+      background: var(--accent-color);
+      color: white;
     }
 
     /* Layout */
@@ -158,6 +239,24 @@
     .card-title { font-weight: bold; font-size: 18px; color: var(--primary-color); display: block; margin-bottom: 5px; }
     .card-desc { font-size: 14px; opacity: 0.8; }
 
+    /* Мобильные полезные ссылки (видны только на мобильных) */
+    .mobile-links-section {
+      display: none;
+      background: var(--card-bg);
+      padding: 20px;
+      margin-bottom: 30px;
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+    }
+
+    .mobile-links-section h3 {
+      font-family: 'Merriweather', serif;
+      color: var(--primary-color);
+      border-bottom: 2px solid var(--accent-color);
+      padding-bottom: 10px;
+      margin-top: 0;
+    }
+
     /* Footer */
     footer {
       text-align: center;
@@ -168,14 +267,39 @@
 
     /* Mobile */
     @media (max-width: 900px) {
-      .container { grid-template-columns: 1fr; }
-      aside { display: none; /* Скрываем боковые панели на мобильных для чистоты, ссылки переносим в меню или низ */ }
-      
-      /* Показываем важные ссылки из rightbar внизу контента */
-      .mobile-links { display: block; margin-top: 20px; text-align: center; }
-    }
-    @media (min-width: 901px) {
-      .mobile-links { display: none; }
+      header {
+        padding: 15px 20px;
+      }
+
+      header h1 {
+        font-size: 18px;
+      }
+
+      .burger-menu {
+        display: block;
+      }
+
+      .container {
+        grid-template-columns: 1fr;
+        margin: 20px auto;
+        gap: 20px;
+      }
+
+      aside {
+        display: none; /* Скрываем десктопные сайдбары */
+      }
+
+      .mobile-links-section {
+        display: block; /* Показываем мобильные полезные ссылки */
+      }
+
+      section {
+        padding: 20px;
+      }
+
+      .projects-grid {
+        grid-template-columns: 1fr;
+      }
     }
   </style>
 </head>
@@ -183,12 +307,34 @@
 
   <header>
     <h1>SeaMan75 Portfolio</h1>
-    <button id="themeToggle" onclick="toggleTheme()">🌙</button>
+    <div class="header-controls">
+      <button class="burger-menu" onclick="toggleMobileMenu()">☰</button>
+      <button id="themeToggle" onclick="toggleTheme()">🌙</button>
+    </div>
   </header>
+
+  <!-- Мобильное меню -->
+  <div class="mobile-nav" id="mobileNav">
+    <div class="mobile-nav-header">
+      <h2>Меню</h2>
+      <button class="close-menu" onclick="toggleMobileMenu()">✕</button>
+    </div>
+    <ul>
+      <li><a href="index.html" onclick="toggleMobileMenu()">🏠 Главная</a></li>
+      <li><a href="resume.html" onclick="toggleMobileMenu()">📄 Резюме</a></li>
+      <li><a href="#projects" onclick="toggleMobileMenu()">🚀 Проекты</a></li>
+      <li><a href="#contact" onclick="toggleMobileMenu()">✉️ Контакты</a></li>
+      <li style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
+        <a href="https://github.com/SeaMan75" target="_blank" onclick="toggleMobileMenu()">💻 Мой GitHub</a>
+      </li>
+      <li><a href="https://roadmap.sh/dashboard" target="_blank" onclick="toggleMobileMenu()">🗺️ Roadmap.sh</a></li>
+      <li><a href="https://learn.javascript.ru" target="_blank" onclick="toggleMobileMenu()">📚 Learn JS</a></li>
+    </ul>
+  </div>
 
   <div class="container">
     
-    <!-- Левая панель навигации -->
+    <!-- Левая панель навигации (десктоп) -->
     <aside class="sidebar">
       <h3>Навигация</h3>
       <ul>
@@ -235,6 +381,16 @@
         </div>
       </section>
 
+      <!-- Мобильные полезные ссылки (видны только на мобильных) -->
+      <section class="mobile-links-section">
+        <h3>Полезные ресурсы</h3>
+        <ul>
+          <li><a href="https://github.com/SeaMan75" target="_blank">💻 Мой GitHub</a></li>
+          <li><a href="https://roadmap.sh/dashboard" target="_blank">🗺️ Roadmap.sh</a></li>
+          <li><a href="https://learn.javascript.ru" target="_blank">📚 Learn JS</a></li>
+        </ul>
+      </section>
+
       <section id="contact">
         <h2>Контакты</h2>
         <p>📧 Email: <a href="mailto:bgnick@mail.ru">bgnick@mail.ru</a></p>
@@ -243,7 +399,7 @@
       </section>
     </main>
 
-    <!-- Правая панель (Полезное) -->
+    <!-- Правая панель (Полезное) - десктоп -->
     <aside class="rightbar">
       <h3>Полезное</h3>
       <ul>
@@ -264,7 +420,7 @@
   </footer>
 
   <script>
-    // Простая логика переключения темы
+    // Переключение темы
     function toggleTheme() {
       document.body.classList.toggle('dark-mode');
       const btn = document.getElementById('themeToggle');
@@ -275,6 +431,13 @@
         btn.textContent = '🌙';
         localStorage.setItem('theme', 'light');
       }
+    }
+
+    // Мобильное меню
+    function toggleMobileMenu() {
+      const nav = document.getElementById('mobileNav');
+      nav.classList.toggle('active');
+      document.body.style.overflow = nav.classList.contains('active') ? 'hidden' : '';
     }
 
     // Проверка сохраненной темы при загрузке
