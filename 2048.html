@@ -10,7 +10,6 @@
   html, body {
     margin: 0; height: 100%; overflow: hidden;
     background: #3a2a1a; font-family: 'Segoe UI', sans-serif; color: #ffe8b0;
-    /* Запрет выделения и выделения при долгом нажатии */
     -webkit-user-select: none; user-select: none;
     -webkit-touch-callout: none;
     -webkit-tap-highlight-color: transparent;
@@ -29,11 +28,10 @@
   #score { font-size: 15px; margin: 3px 0; }
   #best { font-size: 13px; opacity: 0.9; }
   #hint { font-size: 11px; opacity: 0.7; margin-top: 6px; }
-  /* На десктопе показываем стрелки, на мобильном — свайп */
   #hint .mobile { display: none; }
   @media (hover: none) and (pointer: coarse) {
     #hint .desktop { display: none; }
-    #hint .mobile { display: inline; }
+    #hint .mobile { display: block; line-height: 1.4; }
   }
   #overlay {
     position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
@@ -50,7 +48,6 @@
   }
   #overlay button:hover { transform: scale(1.05); }
 
-  /* Стрелка-индикатор свайпа */
   #swipeIndicator {
     position: absolute; top: 50%; left: 50%;
     width: 120px; height: 120px;
@@ -72,6 +69,24 @@
     stroke-linecap: round;
     stroke-linejoin: round;
   }
+
+  /* Кнопка сброса камеры */
+  #resetCamera {
+    position: absolute; bottom: 20px; right: 20px; z-index: 10;
+    width: 50px; height: 50px;
+    background: rgba(60,40,20,0.85);
+    border: 2px solid rgba(255,215,0,0.4);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 0 20px rgba(255,215,0,0.2);
+  }
+  #resetCamera:hover { border-color: #ffd700; }
+  #resetCamera svg {
+    width: 28px; height: 28px;
+    fill: #ffd700;
+  }
 </style>
 </head>
 <body>
@@ -81,8 +96,15 @@
   <div id="best">Рекорд: 0</div>
   <div id="hint">
     <span class="desktop">← ↑ → ↓</span>
-    <span class="mobile">👆 Свайпай</span>
+    <div class="mobile">
+      👆 Свайп — игра<br>
+      👆👆 2 пальца — вращать
+    </div>
   </div>
+</div>
+
+<div id="resetCamera" onclick="resetCamera()">
+  <svg viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>
 </div>
 
 <div id="swipeIndicator">
@@ -117,7 +139,6 @@ class SoundManager {
   constructor() { this.ctx = null; this.enabled = true; }
   init() {
     if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-    // Возобновляем контекст после жеста пользователя (требование iOS)
     if (this.ctx.state === 'suspended') this.ctx.resume();
   }
   vibrate(pattern) {
@@ -293,11 +314,17 @@ controls.enableDamping = true;
 controls.minDistance = 5; controls.maxDistance = 14;
 controls.maxPolarAngle = Math.PI / 2.2;
 controls.target.set(0, 0, 0);
-// На мобильных отключаем вращение камеры, чтобы не конфликтовало со свайпами
+
+// Настройка управления для тач-устройств
 const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 if (isTouchDevice) {
-  controls.enableRotate = false;
-  controls.enablePan = false;
+  // Один палец — для игры (свайпы)
+  // Два пальца — для вращения камеры
+  controls.touches = {
+    ONE: null, // отключаем управление одним пальцем
+    TWO: THREE.TOUCH.ROTATE // два пальца вращают камеру
+  };
+  controls.enablePan = false; // отключаем панорамирование
 }
 
 // ---------- Основание ----------
@@ -525,21 +552,19 @@ const game = new Game();
 window.game = game;
 
 // ---------- Управление ----------
-// Клавиатура
 addEventListener('keydown', e => {
   const map = { ArrowUp:'up', ArrowDown:'down', ArrowLeft:'left', ArrowRight:'right' };
   if (map[e.key]) { e.preventDefault(); game.move(map[e.key]); }
 });
 
-// ---------- СВАЙПЫ (улучшенная версия) ----------
+// ---------- СВАЙПЫ ----------
 const swipeIndicator = document.getElementById('swipeIndicator');
 const swipeArrow = document.getElementById('swipeArrow');
 let touchStart = null;
 let touchStartTime = 0;
-const SWIPE_THRESHOLD = 30; // минимальная длина свайпа в пикселях
-const SWIPE_TIME_LIMIT = 500; // максимум мс на свайп
+const SWIPE_THRESHOLD = 30;
+const SWIPE_TIME_LIMIT = 500;
 
-// Стрелки для индикатора (SVG paths)
 const arrowPaths = {
   up:    'M 50 85 L 50 15 M 25 40 L 50 15 L 75 40',
   down:  'M 50 15 L 50 85 M 25 60 L 50 85 L 75 60',
@@ -561,20 +586,22 @@ function detectSwipeDirection(dx, dy) {
   return dy > 0 ? 'down' : 'up';
 }
 
-// Обработчик начала касания
 addEventListener('touchstart', e => {
-  // Игнорируем касания на UI-элементах
-  if (e.target.closest('#ui') || e.target.closest('#overlay')) return;
-  touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-  touchStartTime = performance.now();
+  if (e.target.closest('#ui') || e.target.closest('#overlay') || e.target.closest('#resetCamera')) return;
+  // Свайпы работают только для одного пальца
+  if (e.touches.length === 1) {
+    touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    touchStartTime = performance.now();
+  }
 }, { passive: true });
 
-// Обработчик движения — предотвращаем скролл страницы
 addEventListener('touchmove', e => {
-  if (touchStart) e.preventDefault();
+  // Предотвращаем скролл только если один палец
+  if (touchStart && e.touches.length === 1) {
+    e.preventDefault();
+  }
 }, { passive: false });
 
-// Обработчик окончания касания
 addEventListener('touchend', e => {
   if (!touchStart) return;
   const touch = e.changedTouches[0];
@@ -583,11 +610,8 @@ addEventListener('touchend', e => {
   const dt = performance.now() - touchStartTime;
   const dist = Math.max(Math.abs(dx), Math.abs(dy));
 
-  // Сбрасываем состояние
-  const wasTouch = touchStart;
   touchStart = null;
 
-  // Проверяем, что это был осознанный свайп
   if (dist < SWIPE_THRESHOLD || dt > SWIPE_TIME_LIMIT) return;
 
   const dir = detectSwipeDirection(dx, dy);
@@ -595,14 +619,22 @@ addEventListener('touchend', e => {
   game.move(dir);
 });
 
-// Обработчик отмены касания
 addEventListener('touchcancel', () => { touchStart = null; });
 
-// Предотвращаем зум двойным тапом и контекстное меню
 addEventListener('gesturestart', e => e.preventDefault());
 addEventListener('contextmenu', e => {
   if (e.target.closest('canvas')) e.preventDefault();
 });
+
+// ---------- Сброс камеры ----------
+window.resetCamera = function() {
+  controls.reset();
+  camera.position.set(5, 7, 5);
+  controls.target.set(0, 0, 0);
+  controls.update();
+  sound.init();
+  if (navigator.vibrate) navigator.vibrate(30);
+};
 
 // ---------- Resize ----------
 addEventListener('resize', () => {
