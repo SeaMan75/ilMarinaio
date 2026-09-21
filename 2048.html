@@ -556,7 +556,7 @@ addEventListener('resize', () => {
 function animate() {
   requestAnimationFrame(animate);
   controls.update();
-  const t = performance.now() * 0.0003;  // ← ИСПРАВЛЕНО: было 0003
+  const t = performance.now() * 0.0003; 
   rim.position.x = Math.cos(t) * 4;
   rim.position.z = Math.sin(t) * 4;
   renderer.render(scene, camera);
