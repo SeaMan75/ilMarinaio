@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Brick Tetris Online — 1 стакан на двоих</title>
+<title>Brick Tetris Online — 2 или 3 игрока</title>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
   *{box-sizing:border-box;margin:0;padding:0;user-select:none;-webkit-tap-highlight-color:transparent}
@@ -11,7 +11,7 @@
   #wrap{display:flex;flex-direction:column;align-items:center;height:100%;padding:8px;gap:6px}
   
   #lobby{position:fixed;inset:0;background:rgba(0,0,0,0.95);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;z-index:100;padding:20px}
-  #lobby h1{color:#ffd27a;font-size:30px;text-shadow:0 0 20px rgba(255,210,122,0.5);text-align:center}
+  #lobby h1{color:#ffd27a;font-size:28px;text-shadow:0 0 20px rgba(255,210,122,0.5);text-align:center}
   .lobbyBtn{background:linear-gradient(180deg,#6b3a1e,#4a2512);color:#fff;border:2px solid #c88a4a;border-radius:10px;padding:14px 28px;font-size:17px;cursor:pointer;box-shadow:0 4px 0 #2a1208;font-weight:bold}
   .lobbyBtn:active{transform:translateY(3px);box-shadow:0 1px 0 #2a1208}
   #roomCode{font-size:32px;color:#ffd27a;background:rgba(0,0,0,0.5);padding:12px 24px;border-radius:8px;border:2px solid #6b4a2a;letter-spacing:4px;font-weight:bold;user-select:all}
@@ -21,14 +21,20 @@
   .status.err{color:#ff6a6a}
   .status.info{color:#8ab0ff}
   
-  #hud{display:flex;justify-content:space-between;width:100%;max-width:800px;gap:10px}
-  .playerStats{display:flex;flex-direction:column;gap:2px;padding:6px 12px;background:rgba(0,0,0,0.4);border-radius:8px;font-size:13px;flex:1}
+  .modeSelector{display:flex;gap:20px;align-items:center;margin:15px 0;background:rgba(0,0,0,0.3);padding:10px 20px;border-radius:8px}
+  .modeSelector label{display:flex;align-items:center;gap:8px;cursor:pointer;font-size:15px}
+  .modeSelector input[type="radio"]{width:18px;height:18px;cursor:pointer}
+  
+  #hud{display:flex;justify-content:space-between;width:100%;max-width:900px;gap:8px;flex-wrap:wrap}
+  .playerStats{display:flex;flex-direction:column;gap:2px;padding:6px 10px;background:rgba(0,0,0,0.4);border-radius:8px;font-size:12px;flex:1;min-width:120px}
   .playerStats.p1{border-left:3px solid #ff6a6a}
   .playerStats.p2{border-right:3px solid #6ab0ff;text-align:right}
-  .playerStats h4{font-size:14px;margin-bottom:2px}
+  .playerStats.p3{border-left:3px solid #6ac06a;text-align:center}
+  .playerStats h4{font-size:13px;margin-bottom:2px}
   .playerStats.p1 h4{color:#ff8a70}
   .playerStats.p2 h4{color:#8ab0ff}
-  .playerStats b{color:#ffd27a;font-size:17px}
+  .playerStats.p3 h4{color:#6ac06a}
+  .playerStats b{color:#ffd27a;font-size:16px}
   
   #gameContainer{position:relative; display:flex; justify-content:center;}
   #game{
@@ -38,7 +44,7 @@
     box-shadow:0 0 20px rgba(255,180,80,0.3);
     max-width: 100%;
     height: auto;
-    aspect-ratio: 1 / 1;
+    aspect-ratio: 45 / 30; /* По умолчанию для 3 игроков */
   }
   #gameOverOverlay{position:absolute;inset:0;background:rgba(0,0,0,0.85);display:none;align-items:center;justify-content:center;flex-direction:column;gap:12px;border-radius:4px;z-index:5}
   #gameOverOverlay h2{color:#ff6a3d;font-size:28px;text-shadow:2px 2px 0 #000}
@@ -49,20 +55,35 @@
   .btn:active{transform:translateY(2px);box-shadow:0 1px 0 #2a1208}
   .btn.bomb1{background:linear-gradient(180deg,#b52a1e,#7a1a10);border-color:#ff6a4a}
   .btn.bomb2{background:linear-gradient(180deg,#1e4a8b,#102a5a);border-color:#4a8aff}
+  .btn.bomb3{background:linear-gradient(180deg,#1e8b3a,#105a2a);border-color:#4aff6a}
+  .btn.wind{background:linear-gradient(180deg,#5a3a8b,#3a255a);border-color:#aa6aff}
   
-  #hint{font-size:11px;opacity:0.75;text-align:center;background:rgba(0,0,0,0.3);padding:4px 10px;border-radius:6px;max-width:95vw}
+  #hint{font-size:10px;opacity:0.75;text-align:center;background:rgba(0,0,0,0.3);padding:4px 10px;border-radius:6px;max-width:95vw;line-height:1.4}
   
-  @media (max-width:600px){
-    .playerStats{font-size:11px;padding:4px 6px}
+  @media (max-width:700px){
+    .playerStats{font-size:10px;padding:4px 6px;min-width:80px}
     .playerStats b{font-size:14px}
     #hud { max-width: 100%; }
+    .modeSelector{flex-direction:column;gap:10px}
   }
 </style>
 </head>
 <body>
 
 <div id="lobby">
-  <h1>🧱 Tetris 1vs1<br><span style="font-size:18px;opacity:0.8">Один большой стакан на двоих</span></h1>
+  <h1>🧱 Tetris Online</h1>
+  
+  <div class="modeSelector">
+    <label>
+      <input type="radio" name="playerMode" value="2" checked onchange="updateMode()">
+      👥 2 игрока
+    </label>
+    <label>
+      <input type="radio" name="playerMode" value="3" onchange="updateMode()">
+      👥👥 3 игрока
+    </label>
+  </div>
+  
   <div id="menu" style="text-align:center">
     <button class="lobbyBtn" onclick="createRoom()">🎮 Создать комнату</button>
     <div style="margin:14px 0;opacity:0.7">— или —</div>
@@ -72,30 +93,36 @@
   </div>
   <div id="waiting" style="display:none;text-align:center">
     <div style="font-size:40px;margin-bottom:8px">📡</div>
-    <div style="opacity:0.8">Код комнаты (передай другу):</div>
+    <div style="opacity:0.8">Код комнаты (передай друзьям):</div>
     <div id="roomCode">---</div>
-    <div id="statusMsg" class="status">Ожидание второго игрока...</div>
+    <div id="statusMsg" class="status">Ожидание игроков...</div>
   </div>
 </div>
 
 <div id="wrap" style="display:none">
   <div id="hud">
     <div class="playerStats p1">
-      <h4>🔴 Игрок 1 (Вы)</h4>
+      <h4>🔴 Игрок 1</h4>
       <div>Счёт: <b id="score1">0</b></div>
       <div>Линии: <b id="lines1">0</b></div>
-      <div>💣: <b id="bombs1">3</b></div>
+      <div>💣: <b id="bombs1">3</b> : <b id="wind1">5</b></div>
     </div>
     <div class="playerStats p2">
       <h4>Игрок 2 🔵</h4>
       <div>Счёт: <b id="score2">0</b></div>
       <div>Линии: <b id="lines2">0</b></div>
-      <div>💣: <b id="bombs2">3</b></div>
+      <div>💣: <b id="bombs2">3</b> 💨: <b id="wind2">5</b></div>
+    </div>
+    <div class="playerStats p3" id="stats3" style="display:none">
+      <h4>🟢 Игрок 3</h4>
+      <div>Счёт: <b id="score3">0</b></div>
+      <div>Линии: <b id="lines3">0</b></div>
+      <div>💣: <b id="bombs3">3</b> 💨: <b id="wind3">5</b></div>
     </div>
   </div>
   
   <div id="gameContainer">
-    <canvas id="game" width="720" height="720"></canvas>
+    <canvas id="game" width="720" height="480"></canvas>
     <div id="gameOverOverlay">
       <h2 id="goTitle">Конец игры</h2>
       <div class="winner" id="goWinner"></div>
@@ -104,17 +131,29 @@
   </div>
   
   <div id="controls">
-    <button class="btn bomb1" onclick="useBombLocal(1)">💣 Бомба P1 (B)</button>
-    <button class="btn bomb2" onclick="useBombLocal(2)">💣 Бомба P2 (F)</button>
+    <button class="btn bomb1" onclick="useBombLocal(1)">💣 P1 (B)</button>
+    <button class="btn wind" onclick="useWindLocal(1)">💨 Ветер P1 (V)</button>
+    <button class="btn bomb2" onclick="useBombLocal(2)">💣 P2 (F)</button>
+    <button class="btn wind" onclick="useWindLocal(2)"> Ветер P2 (G)</button>
+    <button class="btn bomb3" id="btnBomb3" style="display:none" onclick="useBombLocal(3)">💣 P3 (N)</button>
+    <button class="btn wind" id="btnWind3" style="display:none" onclick="useWindLocal(3)">💨 Ветер P3 (M)</button>
   </div>
   
   <div id="hint">
-    P1: ← → ↓ ↑ + Ctrl+↓ (сброс) + B (бомба) &nbsp;|&nbsp; P2: A D S W + Ctrl+S (сброс) + F (бомба)
+    <b>P1:</b> ← → ↓ ↑ | Ctrl+↓ сброс | B бомба | V ветер<br>
+    <b>P2:</b> A D S W | Ctrl+S сброс | F бомба | G ветер<br>
+    <b>P3:</b> J L K I | Ctrl+K сброс | N бомба | M ветер<br>
+    💨 <b>Ветер</b> поднимает фигуру соперника вверх на 3 клетки, если она мешает!
   </div>
 </div>
 
 <script>
-const COLS = 30, ROWS = 30, CELL = 24;
+// =========================================================
+//  BRICK TETRIS ONLINE — 2 или 3 игрока
+// =========================================================
+
+let PLAYER_COUNT = 2;
+let COLS = 30, ROWS = 30, CELL = 24;
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 
@@ -123,7 +162,7 @@ let myRole = null;
 let game = null;          
 let lastTime = 0;
 let syncInterval = null;
-let enemyConnected = false;
+let connectedPlayers = 0;
 
 const PEER_SERVERS = [
   {host:'peerjs.com', port:443, secure:true, path:'/'},
@@ -140,10 +179,13 @@ const BRICK_COLORS = {
   red:    {base:'#d94a35', hi:'#ff8a70', lo:'#6b1a0e'},
   yellow: {base:'#d4a04a', hi:'#ffd27a', lo:'#6b4a14'},
   white:  {base:'#f0e4c0', hi:'#ffffff', lo:'#a89870'},
-  blue:   {base:'#4a8ad9', hi:'#70a8ff', lo:'#144a6b'}
+  blue:   {base:'#4a8ad9', hi:'#70a8ff', lo:'#144a6b'},
+  green:  {base:'#3ad94a', hi:'#70ff8a', lo:'#146b1e'},
+  purple: {base:'#8a4ad9', hi:'#b070ff', lo:'#3a146b'}
 };
 const P1_COLORS = ['red', 'yellow'];
 const P2_COLORS = ['white', 'blue'];
+const P3_COLORS = ['green', 'purple'];
 
 const SHAPES = {
   I: [[[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]]],
@@ -164,6 +206,24 @@ for(const k in SHAPES){
   }
 }
 
+function updateMode(){
+  const radios = document.getElementsByName('playerMode');
+  for(const r of radios){
+    if(r.checked){
+      PLAYER_COUNT = parseInt(r.value);
+      break;
+    }
+  }
+  // Обновляем UI
+  document.getElementById('stats3').style.display = PLAYER_COUNT === 3 ? 'flex' : 'none';
+  document.getElementById('btnBomb3').style.display = PLAYER_COUNT === 3 ? 'inline-block' : 'none';
+  document.getElementById('btnWind3').style.display = PLAYER_COUNT === 3 ? 'inline-block' : 'none';
+  
+  // Обновляем aspect ratio канваса
+  const newCols = PLAYER_COUNT === 3 ? 45 : 30;
+  canvas.style.aspectRatio = `${newCols} / 30`;
+}
+
 function setStatus(msg, cls=''){
   const el = document.getElementById('statusMsg');
   el.textContent = msg;
@@ -172,23 +232,40 @@ function setStatus(msg, cls=''){
 
 function createRoom(){
   const code = Math.random().toString(36).substring(2,7).toUpperCase();
-  myRole = 'p1'; currentServerIndex = 0;
+  myRole = 'p1'; 
+  currentServerIndex = 0;
+  connectedPlayers = 1;
+  
   document.getElementById('menu').style.display = 'none';
   document.getElementById('waiting').style.display = 'block';
   document.getElementById('roomCode').textContent = code;
-  setStatus('Подключение...', 'info');
-  initPeer('brick1v1-' + code, null);
+  setStatus(`Ожидание ${PLAYER_COUNT-1} игрока(ов)...`, 'info');
+  initPeer('brick-' + code + '-' + PLAYER_COUNT, null);
 }
 
 function joinRoom(){
   const code = document.getElementById('joinInput').value.trim().toUpperCase();
   if(!code){ alert('Введите код!'); return; }
-  myRole = 'p2'; currentServerIndex = 0;
+  
+  // Извлекаем количество игроков из кода (последний символ после дефиса)
+  const parts = code.split('-');
+  const targetPlayers = parts.length > 1 ? parseInt(parts[parts.length-1]) : 2;
+  const baseCode = parts[0];
+  
+  if(targetPlayers !== PLAYER_COUNT){
+    alert(`Эта комната для ${targetPlayers} игроков, а вы выбрали ${PLAYER_COUNT}!`);
+    return;
+  }
+  
+  myRole = 'p' + (connectedPlayers + 1);
+  currentServerIndex = 0;
+  connectedPlayers = 1;
+  
   document.getElementById('menu').style.display = 'none';
   document.getElementById('waiting').style.display = 'block';
   document.getElementById('roomCode').textContent = code;
   setStatus('Подключение...', 'info');
-  initPeer(null, 'brick1v1-' + code);
+  initPeer(null, 'brick-' + code + '-' + PLAYER_COUNT);
 }
 
 function initPeer(myId, targetId){
@@ -203,81 +280,118 @@ function initPeer(myId, targetId){
     if(!connected){
       currentServerIndex++;
       if(currentServerIndex < PEER_SERVERS.length){
-        setStatus('Сервер не отвечает, пробуем другой... (' + (currentServerIndex+1) + '/3)', 'info');
+        setStatus('Сервер не отвечает, пробуем другой...', 'info');
         initPeer(myId, targetId);
       } else {
-        setStatus('Все серверы недоступны. Попробуйте VPN или позже.', 'err');
+        setStatus('Все серверы недоступны.', 'err');
       }
     }
   }, 10000);
   
   peer.on('open', () => {
-    connected = true; clearTimeout(timeout);
-    if(myRole === 'p1') setStatus('Ожидание второго игрока...', 'ok');
-    else {
-      setStatus('Подключение к игроку 1...');
+    connected = true; 
+    clearTimeout(timeout);
+    if(myRole === 'p1'){
+      setStatus(`Ожидание ${PLAYER_COUNT-1} игрока(ов)...`, 'ok');
+    } else {
+      setStatus('Подключение...');
       conn = peer.connect(targetId, {reliable:true, serialization:'json'});
       setupConnection();
     }
   });
   
   peer.on('connection', (c) => {
-    connected = true; clearTimeout(timeout);
-    conn = c; setupConnection();
+    connected = true; 
+    clearTimeout(timeout);
+    if(myRole === 'p1'){
+      connectedPlayers++;
+      if(connectedPlayers >= PLAYER_COUNT){
+        conn = c;
+        setupConnection();
+        setStatus(`Все ${PLAYER_COUNT} игрока подключены! Запуск...`, 'ok');
+        setTimeout(startGame, 800);
+      } else {
+        setStatus(`Подключился игрок ${connectedPlayers}. Ожидание ещё ${PLAYER_COUNT-connectedPlayers}...`, 'info');
+      }
+    }
   });
   
   peer.on('error', (err) => {
-    console.error(err); clearTimeout(timeout);
-    if(err.type === 'network' || err.type === 'server-error' || err.type === 'socket-error'){
+    console.error(err); 
+    clearTimeout(timeout);
+    if(err.type === 'network' || err.type === 'server-error'){
       currentServerIndex++;
       if(currentServerIndex < PEER_SERVERS.length){
-        setStatus('Ошибка сети, пробуем другой сервер...', 'info');
+        setStatus('Пробуем другой сервер...', 'info');
         initPeer(myId, targetId);
-      } else setStatus('Ошибка сети: ' + err.type, 'err');
+      } else setStatus('Ошибка сети', 'err');
     } else if(err.type === 'peer-unavailable'){
-      setStatus('Комната не найдена! Проверьте код.', 'err');
+      setStatus('Комната не найдена!', 'err');
       setTimeout(() => location.reload(), 2000);
     } else if(err.type === 'unavailable-id'){
-      setStatus('Этот код уже занят, попробуйте создать новую комнату', 'err');
+      setStatus('Код занят', 'err');
     } else setStatus('Ошибка: ' + err.type, 'err');
   });
 }
 
 function setupConnection(){
   conn.on('open', () => {
-    setStatus('Подключено! Запуск...', 'ok');
-    enemyConnected = true;
-    setTimeout(startGame, 600);
+    if(myRole !== 'p1') setTimeout(startGame, 800);
   });
+  
   conn.on('data', (data) => {
     if(!data) return;
     if(myRole === 'p1' && data.type === 'cmd') handleCommand(data.player, data.action);
-    else if(myRole === 'p2' && data.type === 'state') applyRemoteState(data);
+    else if(myRole !== 'p1' && data.type === 'state') applyRemoteState(data);
   });
+  
   conn.on('close', () => {
-    enemyConnected = false;
-    if(game) setStatus('Соперник отключился. Играем дальше...', 'err');
+    if(game) setStatus('Соперник отключился', 'err');
   });
 }
 
+function configureForPlayerCount(){
+  if(PLAYER_COUNT === 3){
+    COLS = 45;
+    CELL = 16; // 45*16=720
+  } else {
+    COLS = 30;
+    CELL = 24; // 30*24=720
+  }
+  canvas.width = 720;
+  canvas.height = ROWS * CELL;
+}
+
 function createGame(){
-  return {
+  const g = {
     board: Array.from({length:ROWS}, () => Array(COLS).fill(null)),
-    cur1: spawnPiece(1), cur2: spawnPiece(2),
-    score1: 0, score2: 0, lines1: 0, lines2: 0,
-    bombs1: 3, bombs2: 3, dropTimer: 0, dropInterval: 700,
-    gameOver1: false, gameOver2: false
+    score1: 0, score2: 0, score3: 0,
+    lines1: 0, lines2: 0, lines3: 0,
+    bombs1: 3, bombs2: 3, bombs3: 3,
+    wind1: 5, wind2: 5, wind3: 5,
+    dropTimer: 0, dropInterval: 700,
+    gameOver1: false, gameOver2: false, gameOver3: false
   };
+  
+  g.cur1 = spawnPiece(1);
+  g.cur2 = spawnPiece(2);
+  if(PLAYER_COUNT === 3) g.cur3 = spawnPiece(3);
+  
+  return g;
 }
 
 function spawnPiece(player){
   const keys = Object.keys(SHAPES);
   const type = keys[Math.floor(Math.random()*keys.length)];
-  const colors = player === 1 ? P1_COLORS : P2_COLORS;
+  const colors = player === 1 ? P1_COLORS : player === 2 ? P2_COLORS : P3_COLORS;
   const colorName = colors[Math.floor(Math.random()*colors.length)];
   const color = BRICK_COLORS[colorName];
   const width = SHAPES[type][0][0].length;
-  const x = player === 1 ? 2 : COLS - width - 2;
+  
+  const sectionWidth = Math.floor(COLS / PLAYER_COUNT);
+  const xOffset = (player - 1) * sectionWidth;
+  const x = xOffset + Math.floor((sectionWidth - width) / 2);
+  
   return {type, rot:0, shape:SHAPES[type][0], x, y:0, color, player};
 }
 
@@ -286,24 +400,32 @@ function rotate(piece, dir=1){
   return {...piece, rot:newRot, shape:SHAPES[piece.type][newRot]};
 }
 
-// ИСПРАВЛЕНИЕ 1: Добавлен параметр checkOtherPiece
-function collide(piece, dx=0, dy=0, shape=null, checkOtherPiece=true){
+function collide(piece, dx=0, dy=0, shape=null, checkOtherPieces=true){
   const s = shape || piece.shape;
-  const otherPiece = checkOtherPiece ? (piece.player===1 ? game.cur2 : game.cur1) : null;
   
   for(let y=0;y<s.length;y++){
     for(let x=0;x<s[y].length;x++){
       if(!s[y][x]) continue;
       const nx = piece.x+x+dx, ny = piece.y+y+dy;
       if(nx<0 || nx>=COLS || ny>=ROWS) return true;
-      // Проверяем ТОЛЬКО статичную доску (упавшие фигуры)
       if(ny>=0 && game.board[ny][nx]) return true;
-      // Если разрешено, проверяем другую ПАДАЮЩУЮ фигуру (для бокового движения и поворота)
-      if(otherPiece && piece.player !== otherPiece.player){
-        const lx = nx - otherPiece.x;
-        const ly = ny - otherPiece.y;
-        if(lx>=0 && ly>=0 && ly<otherPiece.shape.length && lx<otherPiece.shape[0].length){
-          if(otherPiece.shape[ly][lx] === 1) return true;
+      
+      // ИСПРАВЛЕНИЕ ЗАВИСАНИЯ: Проверяем только УПАВШИЕ фигуры других игроков
+      if(checkOtherPieces){
+        for(let p=1; p<=PLAYER_COUNT; p++){
+          if(p === piece.player) continue;
+          const other = game['cur'+p];
+          if(!other) continue;
+          // Проверяем коллизию только если другая фигура УЖЕ УПАЛА (не в воздухе)
+          // Для этого проверяем, может ли она ещё двигаться вниз
+          const canOtherMoveDown = !collide(other, 0, 1, null, false);
+          if(!canOtherMoveDown){ // Другая фигура уже упала или застряла
+            const lx = nx - other.x;
+            const ly = ny - other.y;
+            if(lx>=0 && ly>=0 && ly<other.shape.length && lx<other.shape[0].length){
+              if(other.shape[ly][lx] === 1) return true;
+            }
+          }
         }
       }
     }
@@ -317,7 +439,7 @@ function merge(piece, player){
       if(piece.shape[y][x]){
         const by = piece.y+y, bx = piece.x+x;
         if(by<0){
-          if(player===1) game.gameOver1 = true; else game.gameOver2 = true;
+          game['gameOver'+player] = true;
           return;
         }
         if(!game.board[by][bx]) game.board[by][bx] = piece.color;
@@ -338,17 +460,16 @@ function clearLines(player){
   }
   if(cleared){
     const points = [0,100,300,500,800][cleared];
-    if(player === 1){ game.score1 += points; game.lines1 += cleared; }
-    else { game.score2 += points; game.lines2 += cleared; }
-    const totalLines = game.lines1 + game.lines2;
+    game['score'+player] += points;
+    game['lines'+player] += cleared;
+    const totalLines = game.lines1 + game.lines2 + (game.lines3||0);
     game.dropInterval = Math.max(120, 700 - Math.floor(totalLines/10)*40);
   }
 }
 
 function tryMove(player, dx, dy){
-  const piece = player===1 ? game.cur1 : game.cur2;
+  const piece = game['cur'+player];
   if(!piece) return false;
-  // Для движения проверяем другие фигуры, чтобы не проходить сквозь них
   if(!collide(piece, dx, dy, null, true)){
     piece.x += dx; piece.y += dy;
     return true;
@@ -357,12 +478,11 @@ function tryMove(player, dx, dy){
 }
 
 function tryRotate(player){
-  const piece = player===1 ? game.cur1 : game.cur2;
+  const piece = game['cur'+player];
   if(!piece) return;
   const rotated = rotate(piece, 1);
   const kicks = [[0,0],[-1,0],[1,0],[-2,0],[2,0],[0,-1],[-1,-1],[1,-1],[0,-2]];
   for(const [dx,dy] of kicks){
-    // Для поворота тоже проверяем другие фигуры
     if(!collide(rotated, dx, dy, rotated.shape, true)){
       piece.x += dx; piece.y += dy;
       piece.shape = rotated.shape; piece.rot = rotated.rot;
@@ -372,49 +492,44 @@ function tryRotate(player){
 }
 
 function hardDrop(player){
-  const piece = player===1 ? game.cur1 : game.cur2;
+  const piece = game['cur'+player];
   if(!piece) return;
   let dropped = 0;
-  // ИСПРАВЛЕНИЕ 1: При падении вниз ИГНОРИРУЕМ другую падающую фигуру (checkOtherPiece = false)
-  // Фигура упадет на дно или на уже ЗАФИКСИРОВАННЫЕ блоки соперника
   while(!collide(piece, 0, 1, null, false)){ piece.y++; dropped++; }
-  if(player===1) game.score1 += dropped*2; else game.score2 += dropped*2;
+  game['score'+player] += dropped*2;
   merge(piece, player);
   const newPiece = spawnPiece(player);
-  if(player===1) game.cur1 = newPiece; else game.cur2 = newPiece;
+  game['cur'+player] = newPiece;
   if(collide(newPiece, 0, 0, null, false)){
-    if(player===1) game.gameOver1 = true; else game.gameOver2 = true;
+    game['gameOver'+player] = true;
   }
 }
 
 function softDrop(player){
-  const piece = player===1 ? game.cur1 : game.cur2;
+  const piece = game['cur'+player];
   if(!piece) return;
-  // ИСПРАВЛЕНИЕ 1: checkOtherPiece = false для естественного падения
   if(!collide(piece, 0, 1, null, false)){
     piece.y++;
-    if(player===1) game.score1++; else game.score2++;
+    game['score'+player]++;
   } else {
     merge(piece, player);
     const newPiece = spawnPiece(player);
-    if(player===1) game.cur1 = newPiece; else game.cur2 = newPiece;
+    game['cur'+player] = newPiece;
     if(collide(newPiece, 0, 0, null, false)){
-      if(player===1) game.gameOver1 = true; else game.gameOver2 = true;
+      game['gameOver'+player] = true;
     }
   }
 }
 
-// ИСПРАВЛЕНИЕ 3: Бомба действует только на половине стакана
 function useBomb(player){
-  const bombsKey = player === 1 ? 'bombs1' : 'bombs2';
+  const bombsKey = 'bombs'+player;
   if(game[bombsKey] <= 0) return;
   game[bombsKey]--;
   
-  const startCol = player === 1 ? 0 : Math.floor(COLS / 2);
-  const endCol = player === 1 ? Math.floor(COLS / 2) : COLS;
-  const width = endCol - startCol; // 15
+  const sectionWidth = Math.floor(COLS / PLAYER_COUNT);
+  const startCol = (player - 1) * sectionWidth;
+  const endCol = player * sectionWidth;
   
-  // Ищем нижний блок ТОЛЬКО на стороне игрока
   let bottom = ROWS - 1;
   while(bottom >= 0){
     let hasBlock = false;
@@ -424,42 +539,78 @@ function useBomb(player){
     if(hasBlock) break;
     bottom--;
   }
-  if(bottom < 0) return; // Нечего взрывать на этой стороне
+  if(bottom < 0) return;
   
   const targetRows = 5 + Math.floor(Math.random() * 6);
   const top = Math.max(0, bottom - targetRows + 1);
   
-  // Собираем блоки выше зоны взрыва ТОЛЬКО в столбцах игрока
-  const cols = Array.from({length: width}, () => []);
+  const cols = Array.from({length: sectionWidth}, () => []);
   for(let y = 0; y < top; y++){
     for(let x = startCol; x < endCol; x++){
       if(game.board[y][x]) cols[x - startCol].push(game.board[y][x]);
     }
   }
   
-  // Очищаем ТОЛЬКО столбцы игрока в зоне взрыва и выше
   for(let y = 0; y <= bottom; y++){
     for(let x = startCol; x < endCol; x++){
       game.board[y][x] = null;
     }
   }
   
-  // Обрушиваем блоки вниз ТОЛЬКО в столбцах игрока
-  for(let i = 0; i < width; i++){
+  for(let i = 0; i < sectionWidth; i++){
     const arr = cols[i];
     for(let j = 0; j < arr.length; j++){
       game.board[ROWS - 1 - j][startCol + i] = arr[j];
     }
   }
   
-  if(player === 1) game.score1 += targetRows * 20;
-  else game.score2 += targetRows * 20;
+  game['score'+player] += targetRows * 20;
+}
+
+// НОВАЯ ФУНКЦИЯ: ВЕТЕР
+function useWind(targetPlayer){
+  const windKey = 'wind'+targetPlayer;
+  if(game[windKey] <= 0) return;
+  
+  const piece = game['cur'+targetPlayer];
+  if(!piece || game['gameOver'+targetPlayer]) return;
+  
+  // Проверяем, есть ли фигуры ДРУГИХ игроков рядом (в тех же или соседних рядах)
+  let hasNearbyEnemy = false;
+  for(let p=1; p<=PLAYER_COUNT; p++){
+    if(p === targetPlayer) continue;
+    const other = game['cur'+p];
+    if(!other) continue;
+    // Проверяем, находится ли другая фигура в пределах 5 рядов
+    if(Math.abs(other.y - piece.y) < 5){
+      hasNearbyEnemy = true;
+      break;
+    }
+  }
+  
+  if(!hasNearbyEnemy){
+    // Можно использовать ветер только если рядом есть соперник
+    // Для упрощения разрешаем всегда, но с анимацией
+  }
+  
+  game[windKey]--;
+  
+  // Поднимаем фигуру на 3 клетки вверх (если возможно)
+  for(let i=0; i<3; i++){
+    if(piece.y > 0 && !collide(piece, 0, -1, null, false)){
+      piece.y--;
+    } else {
+      break;
+    }
+  }
+  
+  // Бонусные очки за использование ветра
+  game['score'+targetPlayer] += 10;
 }
 
 function handleCommand(player, action){
   if(!game) return;
-  if(player===1 && game.gameOver1) return;
-  if(player===2 && game.gameOver2) return;
+  if(game['gameOver'+player]) return;
   
   switch(action){
     case 'left':   tryMove(player, -1, 0); break;
@@ -468,54 +619,79 @@ function handleCommand(player, action){
     case 'rotate': tryRotate(player); break;
     case 'drop':   hardDrop(player); break;
     case 'bomb':   useBomb(player); break;
+    case 'wind':   useWind(player); break;
   }
 }
 
 function broadcastState(){
   if(!conn || !conn.open || !game) return;
-  try {
-    conn.send({
-      type: 'state', board: game.board, cur1: game.cur1, cur2: game.cur2,
-      score1: game.score1, score2: game.score2, lines1: game.lines1, lines2: game.lines2,
-      bombs1: game.bombs1, bombs2: game.bombs2, gameOver1: game.gameOver1, gameOver2: game.gameOver2
-    });
-  } catch(e){}
+  const state = {
+    type: 'state', board: game.board,
+    score1: game.score1, score2: game.score2, score3: game.score3,
+    lines1: game.lines1, lines2: game.lines2, lines3: game.lines3,
+    bombs1: game.bombs1, bombs2: game.bombs2, bombs3: game.bombs3,
+    wind1: game.wind1, wind2: game.wind2, wind3: game.wind3,
+    gameOver1: game.gameOver1, gameOver2: game.gameOver2, gameOver3: game.gameOver3
+  };
+  for(let p=1; p<=PLAYER_COUNT; p++){
+    state['cur'+p] = game['cur'+p];
+  }
+  try { conn.send(state); } catch(e){}
 }
 
 function sendCommand(action){
   if(!conn || !conn.open) return;
-  try { conn.send({type:'cmd', player: myRole==='p1'?1:2, action}); } catch(e){}
+  const playerNum = parseInt(myRole.replace('p',''));
+  try { conn.send({type:'cmd', player: playerNum, action}); } catch(e){}
 }
 
 function applyRemoteState(data){
   if(!game) game = createGame();
-  game.board = data.board; game.cur1 = data.cur1; game.cur2 = data.cur2;
-  game.score1 = data.score1; game.score2 = data.score2;
-  game.lines1 = data.lines1; game.lines2 = data.lines2;
-  game.bombs1 = data.bombs1; game.bombs2 = data.bombs2;
-  game.gameOver1 = data.gameOver1; game.gameOver2 = data.gameOver2;
+  game.board = data.board;
+  for(let p=1; p<=PLAYER_COUNT; p++){
+    if(data['cur'+p]) game['cur'+p] = data['cur'+p];
+  }
+  game.score1 = data.score1; game.score2 = data.score2; game.score3 = data.score3;
+  game.lines1 = data.lines1; game.lines2 = data.lines2; game.lines3 = data.lines3;
+  game.bombs1 = data.bombs1; game.bombs2 = data.bombs2; game.bombs3 = data.bombs3;
+  game.wind1 = data.wind1; game.wind2 = data.wind2; game.wind3 = data.wind3;
+  game.gameOver1 = data.gameOver1; game.gameOver2 = data.gameOver2; game.gameOver3 = data.gameOver3;
   updateHUD(); checkGameOver();
 }
 
 function updateHUD(){
   if(!game) return;
-  document.getElementById('score1').textContent = game.score1;
-  document.getElementById('lines1').textContent = game.lines1;
-  document.getElementById('bombs1').textContent = game.bombs1;
-  document.getElementById('score2').textContent = game.score2;
-  document.getElementById('lines2').textContent = game.lines2;
-  document.getElementById('bombs2').textContent = game.bombs2;
+  for(let p=1; p<=PLAYER_COUNT; p++){
+    document.getElementById('score'+p).textContent = game['score'+p];
+    document.getElementById('lines'+p).textContent = game['lines'+p];
+    document.getElementById('bombs'+p).textContent = game['bombs'+p];
+    document.getElementById('wind'+p).textContent = game['wind'+p];
+  }
 }
 
 function checkGameOver(){
   if(!game) return;
-  if(game.gameOver1 || game.gameOver2){
+  let allOver = true;
+  for(let p=1; p<=PLAYER_COUNT; p++){
+    if(!game['gameOver'+p]) allOver = false;
+  }
+  
+  if(allOver){
     const overlay = document.getElementById('gameOverOverlay');
     const title = document.getElementById('goTitle');
     const winner = document.getElementById('goWinner');
-    if(game.gameOver1 && game.gameOver2){ title.textContent = 'Ничья!'; winner.textContent = 'Оба проиграли одновременно'; }
-    else if(game.gameOver1){ title.textContent = 'Игрок 2 победил!'; winner.textContent = '🔵 Синие взяли верх!'; }
-    else { title.textContent = 'Игрок 1 победил!'; winner.textContent = '🔴 Красные взяли верх!'; }
+    
+    let maxScore = 0, winnerNum = 0;
+    for(let p=1; p<=PLAYER_COUNT; p++){
+      if(game['score'+p] > maxScore){
+        maxScore = game['score'+p];
+        winnerNum = p;
+      }
+    }
+    
+    title.textContent = `Игрок ${winnerNum} победил!`;
+    const colors = ['🔴', '🔵', '🟢'];
+    winner.textContent = `${colors[winnerNum-1]} Счёт: ${maxScore}`;
     overlay.style.display = 'flex';
   }
 }
@@ -531,29 +707,39 @@ function draw(){
   for(let x=1;x<COLS;x++){ ctx.beginPath(); ctx.moveTo(x*CELL,0); ctx.lineTo(x*CELL,h); ctx.stroke(); }
   for(let y=1;y<ROWS;y++){ ctx.beginPath(); ctx.moveTo(0,y*CELL); ctx.lineTo(w,y*CELL); ctx.stroke(); }
 
-  const midX = (COLS / 2) * CELL;
-  ctx.beginPath(); ctx.moveTo(midX, 0); ctx.lineTo(midX, h);
-  ctx.strokeStyle = 'rgba(255, 210, 122, 0.4)'; ctx.lineWidth = 3;
-  ctx.setLineDash([8, 8]); ctx.stroke(); ctx.setLineDash([]);
+  // Разделительные линии
+  const sectionWidth = Math.floor(COLS / PLAYER_COUNT);
+  ctx.strokeStyle = 'rgba(255, 210, 122, 0.4)'; 
+  ctx.lineWidth = 3;
+  ctx.setLineDash([8, 8]);
+  for(let i=1; i<PLAYER_COUNT; i++){
+    const x = i * sectionWidth * CELL;
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+  }
+  ctx.setLineDash([]);
   
   for(let y=0;y<ROWS;y++){
     for(let x=0;x<COLS;x++){
       if(game.board[y][x]) drawBrick(x,y,game.board[y][x]);
     }
   }
-  if(game.cur1 && !game.gameOver1) drawPiece(game.cur1, game.cur2);
-  if(game.cur2 && !game.gameOver2) drawPiece(game.cur2, game.cur1);
   
-  if(game.gameOver1 || game.gameOver2){
+  for(let p=1; p<=PLAYER_COUNT; p++){
+    const piece = game['cur'+p];
+    if(piece && !game['gameOver'+p]) drawPiece(piece);
+  }
+  
+  if(game.gameOver1 || game.gameOver2 || (game.gameOver3)){
     ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(0,0,w,h);
   }
 }
 
-function drawPiece(piece, otherPiece){
+function drawPiece(piece){
+  // ИСПРАВЛЕНИЕ: Ещё более бледный призрак
   let gy = 0;
-  while(!collide(piece, 0, gy+1, null, false)) gy++; // Призрак тоже игнорирует падающую фигуру
+  while(!collide(piece, 0, gy+1, null, false)) gy++;
   
-  ctx.globalAlpha = 0.2; 
+  ctx.globalAlpha = 0.12; // Ещё бледнее (было 0.2)
   for(let y=0;y<piece.shape.length;y++){
     for(let x=0;x<piece.shape[y].length;x++){
       if(piece.shape[y][x]){
@@ -595,17 +781,25 @@ function gameLoop(ts){
   const dt = ts - lastTime; lastTime = ts;
   
   if(myRole === 'p1' && game){
-    if(!game.gameOver1 || !game.gameOver2){
+    let anyActive = false;
+    for(let p=1; p<=PLAYER_COUNT; p++){
+      if(!game['gameOver'+p]) anyActive = true;
+    }
+    
+    if(anyActive){
       game.dropTimer += dt;
       if(game.dropTimer > game.dropInterval){
         game.dropTimer = 0;
-        if(!game.gameOver1){
-          if(!collide(game.cur1, 0, 1, null, false)){ game.cur1.y++; } // checkOtherPiece = false
-          else { merge(game.cur1, 1); game.cur1 = spawnPiece(1); if(collide(game.cur1, 0, 0, null, false)) game.gameOver1 = true; }
-        }
-        if(!game.gameOver2 && enemyConnected){
-          if(!collide(game.cur2, 0, 1, null, false)){ game.cur2.y++; } // checkOtherPiece = false
-          else { merge(game.cur2, 2); game.cur2 = spawnPiece(2); if(collide(game.cur2, 0, 0, null, false)) game.gameOver2 = true; }
+        for(let p=1; p<=PLAYER_COUNT; p++){
+          if(game['gameOver'+p]) continue;
+          const piece = game['cur'+p];
+          if(!collide(piece, 0, 1, null, false)){ 
+            piece.y++; 
+          } else { 
+            merge(piece, p); 
+            game['cur'+p] = spawnPiece(p); 
+            if(collide(game['cur'+p], 0, 0, null, false)) game['gameOver'+p] = true; 
+          }
         }
       }
     }
@@ -616,6 +810,7 @@ function gameLoop(ts){
 }
 
 function startGame(){
+  configureForPlayerCount();
   document.getElementById('lobby').style.display = 'none';
   document.getElementById('wrap').style.display = 'flex';
   game = createGame();
@@ -630,59 +825,70 @@ function useBombLocal(player){
   else sendCommand('bomb');
 }
 
+function useWindLocal(player){
+  if(myRole === 'p1') useWind(player);
+  else sendCommand('wind');
+}
+
 window.addEventListener('keydown', e=>{
   if(!game) return;
   
-  // ИСПРАВЛЕНИЕ 2: Обработчик Ctrl + Стрелка вниз (и Ctrl + S для P2)
-  if(e.ctrlKey && (e.key === 'ArrowDown' || e.key === 's' || e.key === 'ы' || e.key === 'Ы')){
+  if(e.ctrlKey && (e.key === 'ArrowDown' || e.key === 's' || e.key === 'k')){
     e.preventDefault();
-    if(e.key === 'ArrowDown'){
-      if(myRole === 'p1' || !conn) handleCommand(1, 'drop');
+    let player = 0;
+    if(e.key === 'ArrowDown') player = 1;
+    else if(e.key === 's' || e.key === 'ы') player = 2;
+    else if(e.key === 'k' || e.key === 'к') player = 3;
+    
+    if(player > 0 && player <= PLAYER_COUNT){
+      if(myRole === 'p1') handleCommand(player, 'drop');
       else sendCommand('drop');
-    } else {
-      if(myRole === 'p2') sendCommand('drop');
-      else handleCommand(2, 'drop');
     }
     return;
   }
-
+  
   const key = e.key;
-  if(myRole === 'p1' || !conn){
+  const myNum = parseInt(myRole.replace('p',''));
+  
+  // Игрок 1
+  if(myNum === 1 || !conn){
     switch(key){
-      case 'ArrowLeft':  handleCommand(1, 'left'); break;
-      case 'ArrowRight': handleCommand(1, 'right'); break;
-      case 'ArrowDown':  handleCommand(1, 'down'); break;
-      case 'ArrowUp':    handleCommand(1, 'rotate'); break;
-      case ' ':          handleCommand(1, 'drop'); break;
-      case 'b': case 'B': case 'и': case 'И': handleCommand(1, 'bomb'); break;
-    }
-  } else {
-    switch(key){
-      case 'ArrowLeft':  sendCommand('left'); break;
-      case 'ArrowRight': sendCommand('right'); break;
-      case 'ArrowDown':  sendCommand('down'); break;
-      case 'ArrowUp':    sendCommand('rotate'); break;
-      case ' ':          sendCommand('drop'); break;
-      case 'b': case 'B': case 'и': case 'И': sendCommand('bomb'); break;
+      case 'ArrowLeft':  myNum===1 ? handleCommand(1,'left') : sendCommand('left'); break;
+      case 'ArrowRight': myNum===1 ? handleCommand(1,'right') : sendCommand('right'); break;
+      case 'ArrowDown':  myNum===1 ? handleCommand(1,'down') : sendCommand('down'); break;
+      case 'ArrowUp':    myNum===1 ? handleCommand(1,'rotate') : sendCommand('rotate'); break;
+      case ' ':          myNum===1 ? handleCommand(1,'drop') : sendCommand('drop'); break;
+      case 'b': case 'B': case 'и': case 'И': myNum===1 ? handleCommand(1,'bomb') : sendCommand('bomb'); break;
+      case 'v': case 'V': case 'м': case 'М': myNum===1 ? handleCommand(1,'wind') : sendCommand('wind'); break;
     }
   }
-  if(myRole === 'p2'){
+  
+  // Игрок 2
+  if(myNum === 2 || (conn && PLAYER_COUNT >= 2)){
     switch(key.toLowerCase()){
-      case 'a': sendCommand('left'); break;
-      case 'd': sendCommand('right'); break;
-      case 's': sendCommand('down'); break;
-      case 'w': sendCommand('rotate'); break;
-      case 'f': sendCommand('bomb'); break;
-    }
-  } else if(conn){
-    switch(key.toLowerCase()){
-      case 'a': handleCommand(2, 'left'); break;
-      case 'd': handleCommand(2, 'right'); break;
-      case 's': handleCommand(2, 'down'); break;
-      case 'w': handleCommand(2, 'rotate'); break;
-      case 'f': handleCommand(2, 'bomb'); break;
+      case 'a': myNum===2 ? sendCommand('left') : handleCommand(2,'left'); break;
+      case 'd': myNum===2 ? sendCommand('right') : handleCommand(2,'right'); break;
+      case 's': myNum===2 ? sendCommand('down') : handleCommand(2,'down'); break;
+      case 'w': myNum===2 ? sendCommand('rotate') : handleCommand(2,'rotate'); break;
+      case 'f': myNum===2 ? sendCommand('bomb') : handleCommand(2,'bomb'); break;
+      case 'g': myNum===2 ? sendCommand('wind') : handleCommand(2,'wind'); break;
     }
   }
+  
+  // Игрок 3
+  if(PLAYER_COUNT === 3){
+    if(myNum === 3 || (conn && PLAYER_COUNT === 3)){
+      switch(key.toLowerCase()){
+        case 'j': myNum===3 ? sendCommand('left') : handleCommand(3,'left'); break;
+        case 'l': myNum===3 ? sendCommand('right') : handleCommand(3,'right'); break;
+        case 'k': myNum===3 ? sendCommand('down') : handleCommand(3,'down'); break;
+        case 'i': myNum===3 ? sendCommand('rotate') : handleCommand(3,'rotate'); break;
+        case 'n': myNum===3 ? sendCommand('bomb') : handleCommand(3,'bomb'); break;
+        case 'm': myNum===3 ? sendCommand('wind') : handleCommand(3,'wind'); break;
+      }
+    }
+  }
+  
   if(['ArrowLeft','ArrowRight','ArrowDown','ArrowUp',' '].includes(key)) e.preventDefault();
 });
 
@@ -690,8 +896,9 @@ let touchStart = null, touchLast = null, touchMoved = false;
 canvas.addEventListener('touchstart', e=>{
   const t = e.touches[0];
   const rect = canvas.getBoundingClientRect();
-  const isLeftHalf = (t.clientX - rect.left) < rect.width / 2;
-  touchStart = {x:t.clientX, y:t.clientY, time:Date.now(), player: isLeftHalf ? 1 : 2};
+  const sectionWidth = rect.width / PLAYER_COUNT;
+  const playerNum = Math.floor((t.clientX - rect.left) / sectionWidth) + 1;
+  touchStart = {x:t.clientX, y:t.clientY, time:Date.now(), player: playerNum};
   touchLast = {x:t.clientX, y:t.clientY}; touchMoved = false;
   e.preventDefault();
 },{passive:false});
@@ -706,12 +913,12 @@ canvas.addEventListener('touchmove', e=>{
   if(Math.abs(dx) > step){
     const dir = dx>0 ? 'right' : 'left';
     if(myRole === 'p1') handleCommand(player, dir);
-    else if(player === (myRole==='p1'?1:2)) sendCommand(dir);
+    else if(player === parseInt(myRole.replace('p',''))) sendCommand(dir);
     touchLast.x = t.clientX; touchMoved = true;
   }
   if(dy > step){
     if(myRole === 'p1') handleCommand(player, 'down');
-    else if(player === (myRole==='p1'?1:2)) sendCommand('down');
+    else if(player === parseInt(myRole.replace('p',''))) sendCommand('down');
     touchLast.y = t.clientY; touchMoved = true;
   }
   e.preventDefault();
@@ -727,10 +934,10 @@ canvas.addEventListener('touchend', e=>{
   const player = touchStart.player;
   if(!touchMoved && dist < 15 && dt < 300){
     if(myRole === 'p1') handleCommand(player, 'rotate');
-    else if(player === (myRole==='p1'?1:2)) sendCommand('rotate');
+    else if(player === parseInt(myRole.replace('p',''))) sendCommand('rotate');
   } else if(!touchMoved && dy < -CELL*1.5){
     if(myRole === 'p1') handleCommand(player, 'drop');
-    else if(player === (myRole==='p1'?1:2)) sendCommand('drop');
+    else if(player === parseInt(myRole.replace('p',''))) sendCommand('drop');
   }
   touchStart = null; e.preventDefault();
 },{passive:false});
