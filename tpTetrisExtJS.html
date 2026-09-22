@@ -303,11 +303,12 @@
           configureForPlayerCount();
           game = createGame();
           lastTime = 0;
-          requestAnimationFrame(gameLoop); // ← ВОТ ЭТО ЗАПУСКАЕТ ОТРИСОВКУ ДЛЯ ГОСТЯ
+          requestAnimationFrame(gameLoop); // ← ЗАПУСКАЕТ ОТРИСОВКУ ДЛЯ ГОСТЯ
         }
         applyRemoteState(data);
       }
     });
+  } // ← ВОТ ЭТУ СКОБКУ Я ДОБАВИЛ, ОНА БЫЛА ПРОПУЩЕНА!
 
   function configureForPlayerCount(){
     if(PLAYER_COUNT === 3){ COLS = COLS_3; CELL = 16; } 
@@ -733,7 +734,6 @@
     }
   }
 
-  // === НАДЕЖНАЯ ПРИВЯЗКА СОБЫТИЙ (Вместо onclick в HTML) ===
   function initEventListeners() {
     document.getElementById('mode2').addEventListener('change', updateModeUI);
     document.getElementById('mode3').addEventListener('change', updateModeUI);
@@ -811,7 +811,6 @@
     },{passive:false});
   }
 
-  // Запускаем привязку событий после загрузки DOM
   initEventListeners();
 </script>
 </body>
