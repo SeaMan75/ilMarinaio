@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Brick Tetris Online — 2 или 3 игрока</title>
+<!-- Trystero: надежное P2P соединение без CORS-ошибок -->
+<script src="https://cdn.jsdelivr.net/npm/trystero@0.20.0/dist/trystero-torrent.min.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;user-select:none;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;background:linear-gradient(135deg,#1a0f28 0%,#2a1840 100%);font-family:Georgia,serif;color:#f5e0b8;overflow:hidden}
+  #wrap{display:flex;flex-direction:column;align-items:center;height:100%;padding:8px;gap:6px}
+  
+  #lobby{position:fixed;inset:0;background:rgba(0,0,0,0.95);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;z-index:100;padding:20px}
+  #lobby h1{color:#ffd27a;font-size:28px;text-shadow:0 0 20px rgba(255,210,122,0.5);text-align:center}
+  .lobbyBtn{background:linear-gradient(180deg,#6b3a1e,#4a2512);color:#fff;border:2px solid #c88a4a;border-radius:10px;padding:14px 28px;font-size:17px;cursor:pointer;box-shadow:0 4px 0 #2a1208;font-weight:bold}
+  .lobbyBtn:active{transform:translateY(3px);box-shadow:0 1px 0 #2a1208}
+  #roomCode{font-size:32px;color:#ffd27a;background:rgba(0,0,0,0.5);padding:12px 24px;border-radius:8px;border:2px solid #6b4a2a;letter-spacing:4px;font-weight:bold;user-select:all}
+  #joinInput{font-size:20px;padding:10px;border-radius:6px;border:2px solid #6b4a2a;background:#1a0f28;color:#f5e0b8;text-align:center;letter-spacing:3px;text-transform:uppercase;width:200px}
+  .status{font-size:15px;opacity:0.9;padding:8px 16px;background:rgba(0,0,0,0.4);border-radius:6px;max-width:90vw;text-align:center}
+  .status.ok{color:#6ac06a}
+  .status.err{color:#ff6a6a}
+  .status.info{color:#8ab0ff}
+  
+  .modeSelector{display:flex;gap:20px;align-items:center;margin:15px 0;background:rgba(0,0,0,0.3);padding:10px 20px;border-radius:8px}
+  .modeSelector label{display:flex;align-items:center;gap:8px;cursor:pointer;font-size:15px}
+  .modeSelector input[type="radio"]{width:18px;height:18px;cursor:pointer}
+  
+  #hud{display:flex;justify-content:space-between;width:100%;max-width:900px;gap:8px;flex-wrap:wrap}
+  .playerStats{display:flex;flex-direction:column;gap:2px;padding:6px 10px;background:rgba(0,0,0,0.4);border-radius:8px;font-size:12px;flex:1;min-width:120px}
+  .playerStats.p1{border-left:3px solid #ff6a6a}
+  .playerStats.p2{border-right:3px solid #6ab0ff;text-align:right}
+  .playerStats.p3{border-left:3px solid #6ac06a;text-align:center}
+  .playerStats h4{font-size:13px;margin-bottom:2px}
+  .playerStats.p1 h4{color:#ff8a70}
+  .playerStats.p2 h4{color:#8ab0ff}
+  .playerStats.p3 h4{color:#6ac06a}
+  .playerStats b{color:#ffd27a;font-size:16px}
+  
+  #gameContainer{position:relative; display:flex; justify-content:center;}
+  #game{
+    background:#000;
+    border:4px solid #8b5a2b;
+    border-radius:6px;
+    box-shadow:0 0 20px rgba(255,180,80,0.3);
+    max-width: 100%;
+    height: auto;
+    aspect-ratio: 30 / 30;
+  }
+  #gameOverOverlay{position:absolute;inset:0;background:rgba(0,0,0,0.85);display:none;align-items:center;justify-content:center;flex-direction:column;gap:12px;border-radius:4px;z-index:5}
+  #gameOverOverlay h2{color:#ff6a3d;font-size:28px;text-shadow:2px 2px 0 #000}
+  #gameOverOverlay .winner{color:#ffd27a;font-size:20px}
+  
+  #controls{display:flex;gap:10px;margin-top:4px;flex-wrap:wrap;justify-content:center}
+  .btn{background:linear-gradient(180deg,#6b3a1e,#4a2512);color:#fff;border:2px solid #c88a4a;border-radius:8px;padding:8px 14px;font-size:14px;font-weight:bold;cursor:pointer;box-shadow:0 3px 0 #2a1208}
+  .btn:active{transform:translateY(2px);box-shadow:0 1px 0 #2a1208}
+  .btn.bomb1{background:linear-gradient(180deg,#b52a1e,#7a1a10);border-color:#ff6a4a}
+  .btn.bomb2{background:linear-gradient(180deg,#1e4a8b,#102a5a);border-color:#4a8aff}
+  .btn.bomb3{background:linear-gradient(180deg,#1e8b3a,#105a2a);border-color:#4aff6a}
+  .btn.wind{background:linear-gradient(180deg,#5a3a8b,#3a255a);border-color:#aa6aff}
+  
+  #hint{font-size:10px;opacity:0.75;text-align:center;background:rgba(0,0,0,0.3);padding:4px 10px;border-radius:6px;max-width:95vw;line-height:1.4}
+  
+  @media (max-width:700px){
+    .playerStats{font-size:10px;padding:4px 6px;min-width:80px}
+    .playerStats b{font-size:14px}
+    #hud { max-width: 100%; }
+    .modeSelector{flex-direction:column;gap:10px}
+  }
+</style>
+</head>
+<body>
+
+<div id="lobby">
+  <h1>🧱 Tetris Online</h1>
+  
+  <div class="modeSelector">
+    <label>
+      <input type="radio" name="playerMode" value="2" checked onchange="updateModeUI()">
+      👥 2 игрока
+    </label>
+    <label>
+      <input type="radio" name="playerMode" value="3" onchange="updateModeUI()">
+      👥👥 3 игрока
+    </label>
+  </div>
+  
+  <div id="menu" style="text-align:center">
+    <button class="lobbyBtn" onclick="createRoom()">🎮 Создать комнату</button>
+    <div style="margin:14px 0;opacity:0.7">— или —</div>
+    <input type="text" id="joinInput" placeholder="КОД КОМНАТЫ" maxlength="8">
+    <br>
+    <button class="lobbyBtn" onclick="joinRoom()" style="margin-top:10px">🔗 Присоединиться</button>
+  </div>
+  <div id="waiting" style="display:none;text-align:center">
+    <div style="font-size:40px;margin-bottom:8px">📡</div>
+    <div style="opacity:0.8">Код комнаты (передай друзьям):</div>
+    <div id="roomCode">---</div>
+    <div id="statusMsg" class="status">Ожидание игроков...</div>
+  </div>
+</div>
+
+<div id="wrap" style="display:none">
+  <div id="hud">
+    <div class="playerStats p1">
+      <h4>🔴 Игрок 1</h4>
+      <div>Счёт: <b id="score1">0</b></div>
+      <div>Линии: <b id="lines1">0</b></div>
+      <div>💣: <b id="bombs1">3</b> 💨: <b id="wind1">5</b></div>
+    </div>
+    <div class="playerStats p2">
+      <h4>Игрок 2 🔵</h4>
+      <div>Счёт: <b id="score2">0</b></div>
+      <div>Линии: <b id="lines2">0</b></div>
+      <div>💣: <b id="bombs2">3</b> 💨: <b id="wind2">5</b></div>
+    </div>
+    <div class="playerStats p3" id="stats3" style="display:none">
+      <h4>🟢 Игрок 3</h4>
+      <div>Счёт: <b id="score3">0</b></div>
+      <div>Линии: <b id="lines3">0</b></div>
+      <div>💣: <b id="bombs3">3</b> 💨: <b id="wind3">5</b></div>
+    </div>
+  </div>
+  
+  <div id="gameContainer">
+    <canvas id="game" width="720" height="480"></canvas>
+    <div id="gameOverOverlay">
+      <h2 id="goTitle">Конец игры</h2>
+      <div class="winner" id="goWinner"></div>
+      <button class="lobbyBtn" onclick="location.reload()">Заново</button>
+    </div>
+  </div>
+  
+  <div id="controls">
+    <button class="btn bomb1" onclick="useActionLocal(1,'bomb')">💣 P1 (B)</button>
+    <button class="btn wind" onclick="useActionLocal(1,'wind')">💨 Ветер P1 (V)</button>
+    <button class="btn bomb2" onclick="useActionLocal(2,'bomb')">💣 P2 (F)</button>
+    <button class="btn wind" onclick="useActionLocal(2,'wind')">💨 Ветер P2 (G)</button>
+    <button class="btn bomb3" id="btnBomb3" style="display:none" onclick="useActionLocal(3,'bomb')">💣 P3 (N)</button>
+    <button class="btn wind" id="btnWind3" style="display:none" onclick="useActionLocal(3,'wind')">💨 Ветер P3 (M)</button
+  </div>
+  
+  <div id="hint">
+    <b>P1:</b> ← → ↓ ↑ | Ctrl+↓ сброс | B бомба | V ветер<br>
+    <b>P2:</b> A D S W | Ctrl+S сброс | F бомба | G ветер<br>
+    <b>P3:</b> J L K I | Ctrl+K сброс | N бомба | M ветер<br>
+    💨 <b>Ветер</b> поднимает твою фигуру вверх на 3 клетки, если она застряла!
+  </div>
+</div>
+
+<script>
+const APP_ID = 'brick-tetris-v3-multi';
+let room = null;
+let myRole = null; 
+let myPlayerNum = 0; 
+let PLAYER_COUNT = 2;
+let game = null;
+let lastTime = 0;
+let connectedPeers = [];
+
+let sendCmd = null, getCmd = null;
+let sendState = null, getState = null;
+let sendConfig = null, getConfig = null;
+
+const COLS_2 = 30, COLS_3 = 45, ROWS = 30;
+let COLS = 30, CELL = 24;
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+
+const BRICK_COLORS = {
+  red: {base:'#d94a35', hi:'#ff8a70', lo:'#6b1a0e'},
+  yellow: {base:'#d4a04a', hi:'#ffd27a', lo:'#6b4a14'},
+  white: {base:'#f0e4c0', hi:'#ffffff', lo:'#a89870'},
+  blue: {base:'#4a8ad9', hi:'#70a8ff', lo:'#144a6b'},
+  green: {base:'#3ad94a', hi:'#70ff8a', lo:'#146b1e'},
+  purple: {base:'#8a4ad9', hi:'#b070ff', lo:'#3a146b'}
+};
+const P1_COLORS = ['red', 'yellow'];
+const P2_COLORS = ['white', 'blue'];
+const P3_COLORS = ['green', 'purple'];
+
+const SHAPES = {
+  I: [[[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]]],
+  O: [[[1,1],[1,1]]],
+  T: [[[0,1,0],[1,1,1],[0,0,0]]],
+  S: [[[0,1,1],[1,1,0],[0,0,0]]],
+  Z: [[[1,1,0],[0,1,1],[0,0,0]]],
+  L: [[[0,0,1],[1,1,1],[0,0,0]]],
+  J: [[[1,0,0],[1,1,1],[0,0,0]]]
+};
+for(const k in SHAPES){
+  for(let r=1;r<4;r++){
+    const prev = SHAPES[k][r-1];
+    const s = prev.length;
+    const m = Array.from({length:s},()=>Array(s).fill(0));
+    for(let y=0;y<s;y++) for(let x=0;x<s;x++) m[x][s-1-y]=prev[y][x];
+    SHAPES[k].push(m);
+  }
+}
+
+function updateModeUI(){
+  const radios = document.getElementsByName('playerMode');
+  for(const r of radios){
+    if(r.checked){ PLAYER_COUNT = parseInt(r.value); break; }
+  }
+  document.getElementById('stats3').style.display = PLAYER_COUNT === 3 ? 'flex' : 'none';
+  document.getElementById('btnBomb3').style.display = PLAYER_COUNT === 3 ? 'inline-block' : 'none';
+  document.getElementById('btnWind3').style.display = PLAYER_COUNT === 3 ? 'inline-block' : 'none';
+  canvas.style.aspectRatio = `${PLAYER_COUNT === 3 ? 45 : 30} / 30`;
+}
+
+function setStatus(msg, cls=''){
+  const el = document.getElementById('statusMsg');
+  el.textContent = msg;
+  el.className = 'status ' + cls;
+}
+
+function createRoom(){
+  const code = Math.random().toString(36).substring(2,7).toUpperCase();
+  myRole = 'p1'; myPlayerNum = 1;
+  
+  document.getElementById('menu').style.display = 'none';
+  document.getElementById('waiting').style.display = 'block';
+  document.getElementById('roomCode').textContent = code;
+  setStatus(`Ожидание ${PLAYER_COUNT-1} игрока(ов)...`, 'info');
+  
+  try {
+    room = trystero.joinRoom({appId: APP_ID}, code);
+    setupHost();
+  } catch(e){ setStatus('Ошибка: ' + e.message, 'err'); }
+}
+
+function joinRoom(){
+  const code = document.getElementById('joinInput').value.trim().toUpperCase();
+  if(!code){ alert('Введите код!'); return; }
+  myRole = 'guest';
+  
+  document.getElementById('menu').style.display = 'none';
+  document.getElementById('waiting').style.display = 'block';
+  document.getElementById('roomCode').textContent = code;
+  setStatus('Подключение к комнате...', 'info');
+  
+  try {
+    room = trystero.joinRoom({appId: APP_ID}, code);
+    setupGuest();
+  } catch(e){ setStatus('Ошибка: ' + e.message, 'err'); }
+}
+
+function setupHost(){
+  [sendCmd, getCmd] = room.makeAction('cmd');
+  [sendState, getState] = room.makeAction('state');
+  [sendConfig, getConfig] = room.makeAction('config');
+
+  room.onPeerJoin(peerId => {
+    const newPlayerNum = connectedPeers.length + 2;
+    connectedPeers.push(peerId);
+    sendConfig({ playerNum: newPlayerNum, playerCount: PLAYER_COUNT }, peerId);
+    
+    if(connectedPeers.length + 1 >= PLAYER_COUNT){
+      setStatus(`Все ${PLAYER_COUNT} игрока подключены! Запуск...`, 'ok');
+      setTimeout(startGame, 800);
+    } else {
+      setStatus(`Подключился игрок ${connectedPeers.length + 1}. Ожидание...`, 'info');
+    }
+  });
+
+  getCmd((data, peerId) => {
+    if(data && data.action) handleCommand(data.player, data.action);
+  });
+}
+
+function setupGuest(){
+  [sendCmd, getCmd] = room.makeAction('cmd');
+  [sendState, getState] = room.makeAction('state');
+  [sendConfig, getConfig] = room.makeAction('config');
+
+  getConfig((data, peerId) => {
+    if(!myPlayerNum){
+      myPlayerNum = data.playerNum;
+      myRole = 'p' + myPlayerNum;
+      PLAYER_COUNT = data.playerCount;
+      updateModeUI();
+      setStatus('Подключено! Ожидание запуска...', 'ok');
+    }
+  });
+
+  getState((data, peerId) => {
+    if(data) {
+      if(!game) {
+        document.getElementById('lobby').style.display = 'none';
+        document.getElementById('wrap').style.display = 'flex';
+        configureForPlayerCount();
+        game = createGame();
+      }
+      applyRemoteState(data);
+    }
+  });
+}
+
+function configureForPlayerCount(){
+  if(PLAYER_COUNT === 3){ COLS = COLS_3; CELL = 16; } 
+  else { COLS = COLS_2; CELL = 24; }
+  canvas.width = 720;
+  canvas.height = ROWS * CELL;
+}
+
+function createGame(){
+  const g = {
+    board: Array.from({length:ROWS}, () => Array(COLS).fill(null)),
+    score1: 0, score2: 0, score3: 0,
+    lines1: 0, lines2: 0, lines3: 0,
+    bombs1: 3, bombs2: 3, bombs3: 3,
+    wind1: 5, wind2: 5, wind3: 5,
+    dropTimer: 0, dropInterval: 700,
+    gameOver1: false, gameOver2: false, gameOver3: false
+  };
+  g.cur1 = spawnPiece(1);
+  g.cur2 = spawnPiece(2);
+  if(PLAYER_COUNT === 3) g.cur3 = spawnPiece(3);
+  return g;
+}
+
+function spawnPiece(player){
+  const keys = Object.keys(SHAPES);
+  const type = keys[Math.floor(Math.random()*keys.length)];
+  const colors = player === 1 ? P1_COLORS : player === 2 ? P2_COLORS : P3_COLORS;
+  const colorName = colors[Math.floor(Math.random()*colors.length)];
+  const width = SHAPES[type][0][0].length;
+  const sectionWidth = Math.floor(COLS / PLAYER_COUNT);
+  const x = (player - 1) * sectionWidth + Math.floor((sectionWidth - width) / 2);
+  return {type, rot:0, shape:SHAPES[type][0], x, y:0, color:BRICK_COLORS[colorName], player};
+}
+
+function rotate(piece, dir=1){
+  const newRot = (piece.rot - dir + 4) % 4;
+  return {...piece, rot:newRot, shape:SHAPES[piece.type][newRot]};
+}
+
+// ИСПРАВЛЕНИЕ ЗАВИСАНИЯ: проверяем только УПАВШИЕ фигуры
+function collide(piece, dx=0, dy=0, shape=null, checkOtherPieces=true){
+  const s = shape || piece.shape;
+  for(let y=0;y<s.length;y++){
+    for(let x=0;x<s[y].length;x++){
+      if(!s[y][x]) continue;
+      const nx = piece.x+x+dx, ny = piece.y+y+dy;
+      if(nx<0 || nx>=COLS || ny>=ROWS) return true;
+      if(ny>=0 && game.board[ny][nx]) return true;
+      
+      if(checkOtherPieces){
+        for(let p=1; p<=PLAYER_COUNT; p++){
+          if(p === piece.player) continue;
+          const other = game['cur'+p];
+          if(!other) continue;
+          // Проверяем коллизию только если другая фигура УЖЕ не может двигаться вниз (упала)
+          const canOtherMoveDown = !collide(other, 0, 1, null, false);
+          if(!canOtherMoveDown){
+            const lx = nx - other.x;
+            const ly = ny - other.y;
+            if(lx>=0 && ly>=0 && ly<other.shape.length && lx<other.shape[0].length){
+              if(other.shape[ly][lx] === 1) return true;
+            }
+          }
+        }
+      }
+    }
+  }
+  return false;
+}
+
+function merge(piece, player){
+  for(let y=0;y<piece.shape.length;y++){
+    for(let x=0;x<piece.shape[y].length;x++){
+      if(piece.shape[y][x]){
+        const by = piece.y+y, bx = piece.x+x;
+        if(by<0){ game['gameOver'+player] = true; return; }
+        if(!game.board[by][bx]) game.board[by][bx] = piece.color;
+      }
+    }
+  }
+  clearLines(player);
+}
+
+function clearLines(player){
+  let cleared = 0;
+  for(let y=ROWS-1;y>=0;y--){
+    if(game.board[y].every(c=>c)){
+      game.board.splice(y,1);
+      game.board.unshift(Array(COLS).fill(null));
+      cleared++; y++;
+    }
+  }
+  if(cleared){
+    const points = [0,100,300,500,800][cleared];
+    game['score'+player] += points;
+    game['lines'+player] += cleared;
+    const totalLines = game.lines1 + game.lines2 + (game.lines3||0);
+    game.dropInterval = Math.max(120, 700 - Math.floor(totalLines/10)*40);
+  }
+}
+
+function tryMove(player, dx, dy){
+  const piece = game['cur'+player];
+  if(!piece) return false;
+  if(!collide(piece, dx, dy, null, true)){ piece.x += dx; piece.y += dy; return true; }
+  return false;
+}
+
+function tryRotate(player){
+  const piece = game['cur'+player];
+  if(!piece) return;
+  const rotated = rotate(piece, 1);
+  const kicks = [[0,0],[-1,0],[1,0],[-2,0],[2,0],[0,-1],[-1,-1],[1,-1],[0,-2]];
+  for(const [dx,dy] of kicks){
+    if(!collide(rotated, dx, dy, rotated.shape, true)){
+      piece.x += dx; piece.y += dy;
+      piece.shape = rotated.shape; piece.rot = rotated.rot;
+      return;
+    }
+  }
+}
+
+function hardDrop(player){
+  const piece = game['cur'+player];
+  if(!piece) return;
+  let dropped = 0;
+  while(!collide(piece, 0, 1, null, false)){ piece.y++; dropped++; }
+  game['score'+player] += dropped*2;
+  merge(piece, player);
+  const newPiece = spawnPiece(player);
+  game['cur'+player] = newPiece;
+  if(collide(newPiece, 0, 0, null, false)) game['gameOver'+player] = true;
+}
+
+function softDrop(player){
+  const piece = game['cur'+player];
+  if(!piece) return;
+  if(!collide(piece, 0, 1, null, false)){
+    piece.y++;
+    game['score'+player]++;
+  } else {
+    merge(piece, player);
+    const newPiece = spawnPiece(player);
+    game['cur'+player] = newPiece;
+    if(collide(newPiece, 0, 0, null, false)) game['gameOver'+player] = true;
+  }
+}
+
+function useBomb(player){
+  const bombsKey = 'bombs'+player;
+  if(game[bombsKey] <= 0) return;
+  game[bombsKey]--;
+  const sectionWidth = Math.floor(COLS / PLAYER_COUNT);
+  const startCol = (player - 1) * sectionWidth;
+  const endCol = player * sectionWidth;
+  
+  let bottom = ROWS - 1;
+  while(bottom >= 0){
+    let hasBlock = false;
+    for(let x = startCol; x < endCol; x++){ if(game.board[bottom][x]){ hasBlock = true; break; } }
+    if(hasBlock) break;
+    bottom--;
+  }
+  if(bottom < 0) return;
+  
+  const targetRows = 5 + Math.floor(Math.random() * 6);
+  const top = Math.max(0, bottom - targetRows + 1);
+  const cols = Array.from({length: sectionWidth}, () => []);
+  for(let y = 0; y < top; y++){
+    for(let x = startCol; x < endCol; x++){
+      if(game.board[y][x]) cols[x - startCol].push(game.board[y][x]);
+    }
+  }
+  for(let y = 0; y <= bottom; y++){
+    for(let x = startCol; x < endCol; x++){ game.board[y][x] = null; }
+  }
+  for(let i = 0; i < sectionWidth; i++){
+    const arr = cols[i];
+    for(let j = 0; j < arr.length; j++){ game.board[ROWS - 1 - j][startCol + i] = arr[j]; }
+  }
+  game['score'+player] += targetRows * 20;
+}
+
+function useWind(player){
+  const windKey = 'wind'+player;
+  if(game[windKey] <= 0) return;
+  const piece = game['cur'+player];
+  if(!piece || game['gameOver'+player]) return;
+  game[windKey]--;
+  for(let i=0; i<3; i++){
+    if(piece.y > 0 && !collide(piece, 0, -1, null, false)){ piece.y--; }
+    else break;
+  }
+  game['score'+player] += 10;
+}
+
+function handleCommand(player, action){
+  if(!game || game['gameOver'+player]) return;
+  switch(action){
+    case 'left': tryMove(player, -1, 0); break;
+    case 'right': tryMove(player, 1, 0); break;
+    case 'down': softDrop(player); break;
+    case 'rotate': tryRotate(player); break;
+    case 'drop': hardDrop(player); break;
+    case 'bomb': useBomb(player); break;
+    case 'wind': useWind(player); break;
+  }
+}
+
+function broadcastState(){
+  if(!game) return;
+  const state = {
+    type: 'state', board: game.board,
+    score1: game.score1, score2: game.score2, score3: game.score3,
+    lines1: game.lines1, lines2: game.lines2, lines3: game.lines3,
+    bombs1: game.bombs1, bombs2: game.bombs2, bombs3: game.bombs3,
+    wind1: game.wind1, wind2: game.wind2, wind3: game.wind3,
+    gameOver1: game.gameOver1, gameOver2: game.gameOver2, gameOver3: game.gameOver3
+  };
+  for(let p=1; p<=PLAYER_COUNT; p++) state['cur'+p] = game['cur'+p];
+  try { sendState(state); } catch(e){}
+}
+
+function sendCommand(action){
+  if(!room || myRole === 'p1') return;
+  try { sendCmd({player: myPlayerNum, action}); } catch(e){}
+}
+
+function applyRemoteState(data){
+  if(!game) return;
+  game.board = data.board;
+  for(let p=1; p<=PLAYER_COUNT; p++) if(data['cur'+p]) game['cur'+p] = data['cur'+p];
+  game.score1 = data.score1; game.score2 = data.score2; game.score3 = data.score3;
+  game.lines1 = data.lines1; game.lines2 = data.lines2; game.lines3 = data.lines3;
+  game.bombs1 = data.bombs1; game.bombs2 = data.bombs2; game.bombs3 = data.bombs3;
+  game.wind1 = data.wind1; game.wind2 = data.wind2; game.wind3 = data.wind3;
+  game.gameOver1 = data.gameOver1; game.gameOver2 = data.gameOver2; game.gameOver3 = data.gameOver3;
+  updateHUD(); checkGameOver();
+}
+
+function updateHUD(){
+  if(!game) return;
+  for(let p=1; p<=PLAYER_COUNT; p++){
+    document.getElementById('score'+p).textContent = game['score'+p];
+    document.getElementById('lines'+p).textContent = game['lines'+p];
+    document.getElementById('bombs'+p).textContent = game['bombs'+p];
+    document.getElementById('wind'+p).textContent = game['wind'+p];
+  }
+}
+
+function checkGameOver(){
+  if(!game) return;
+  let allOver = true;
+  for(let p=1; p<=PLAYER_COUNT; p++) if(!game['gameOver'+p]) allOver = false;
+  
+  if(allOver){
+    let maxScore = 0, winnerNum = 0;
+    for(let p=1; p<=PLAYER_COUNT; p++){
+      if(game['score'+p] > maxScore){ maxScore = game['score'+p]; winnerNum = p; }
+    }
+    document.getElementById('goTitle').textContent = `Игрок ${winnerNum} победил!`;
+    const colors = ['🔴', '🔵', '🟢'];
+    document.getElementById('goWinner').textContent = `${colors[winnerNum-1]} Счёт: ${maxScore}`;
+    document.getElementById('gameOverOverlay').style.display = 'flex';
+  }
+}
+
+function draw(){
+  if(!game) return;
+  const w = canvas.width, h = canvas.height;
+  const grad = ctx.createRadialGradient(w/2,h/2,10,w/2,h/2,Math.max(w,h));
+  grad.addColorStop(0,'#3a2414'); grad.addColorStop(1,'#1a1008');
+  ctx.fillStyle = grad; ctx.fillRect(0,0,w,h);
+  
+  ctx.strokeStyle = 'rgba(255,200,120,0.05)'; ctx.lineWidth = 1;
+  for(let x=1;x<COLS;x++){ ctx.beginPath(); ctx.moveTo(x*CELL,0); ctx.lineTo(x*CELL,h); ctx.stroke(); }
+  for(let y=1;y<ROWS;y++){ ctx.beginPath(); ctx.moveTo(0,y*CELL); ctx.lineTo(w,y*CELL); ctx.stroke(); }
+
+  const sectionWidth = Math.floor(COLS / PLAYER_COUNT);
+  ctx.strokeStyle = 'rgba(255, 210, 122, 0.4)'; ctx.lineWidth = 3;
+  ctx.setLineDash([8, 8]);
+  for(let i=1; i<PLAYER_COUNT; i++){
+    ctx.beginPath(); ctx.moveTo(i * sectionWidth * CELL, 0); ctx.lineTo(i * sectionWidth * CELL, h); ctx.stroke();
+  }
+  ctx.setLineDash([]);
+  
+  for(let y=0;y<ROWS;y++){
+    for(let x=0;x<COLS;x++){
+      if(game.board[y][x]) drawBrick(x,y,game.board[y][x]);
+    }
+  }
+  for(let p=1; p<=PLAYER_COUNT; p++){
+    const piece = game['cur'+p];
+    if(piece && !game['gameOver'+p]) drawPiece(piece);
+  }
+  if(game.gameOver1 || game.gameOver2 || game.gameOver3){
+    ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(0,0,w,h);
+  }
+}
+
+function drawPiece(piece){
+  let gy = 0;
+  while(!collide(piece, 0, gy+1, null, false)) gy++;
+  
+  // ЕЩЕ БОЛЕЕ БЛЕДНЫЙ ПРИЦЕЛ
+  ctx.globalAlpha = 0.12;
+  for(let y=0;y<piece.shape.length;y++){
+    for(let x=0;x<piece.shape[y].length;x++){
+      if(piece.shape[y][x]){
+        const px = (piece.x+x)*CELL, py = (piece.y+y+gy)*CELL;
+        ctx.fillStyle = piece.color.hi;
+        ctx.fillRect(px, py, CELL, CELL);
+        ctx.strokeStyle = piece.color.base;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(px+0.5, py+0.5, CELL-1, CELL-1);
+      }
+    }
+  }
+  ctx.globalAlpha = 1;
+
+  for(let y=0;y<piece.shape.length;y++){
+    for(let x=0;x<piece.shape[y].length;x++){
+      if(piece.shape[y][x]) drawBrick(piece.x+x, piece.y+y, piece.color);
+    }
+  }
+}
+
+function drawBrick(x,y,color){
+  const s = CELL; const px = x*s, py = y*s;
+  ctx.fillStyle = color.base; ctx.fillRect(px,py,s,s);
+  const g = ctx.createLinearGradient(px,py,px+s,py+s);
+  g.addColorStop(0, color.hi); g.addColorStop(0.4, 'rgba(0,0,0,0)'); g.addColorStop(1, color.lo);
+  ctx.fillStyle = g; ctx.fillRect(px,py,s,s);
+  ctx.strokeStyle = color.hi; ctx.globalAlpha = 0.85; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(px+1,py+s-1); ctx.lineTo(px+1,py+1); ctx.lineTo(px+s-1,py+1); ctx.stroke();
+  ctx.strokeStyle = color.lo; ctx.globalAlpha = 0.9;
+  ctx.beginPath(); ctx.moveTo(px+s-1,py+1); ctx.lineTo(px+s-1,py+s-1); ctx.lineTo(px+1,py+s-1); ctx.stroke();
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 1;
+  ctx.strokeRect(px+0.5,py+0.5,s-1,s-1);
+}
+
+function gameLoop(ts){
+  if(!lastTime) lastTime = ts;
+  const dt = ts - lastTime; lastTime = ts;
+  
+  if(myRole === 'p1' && game){
+    let anyActive = false;
+    for(let p=1; p<=PLAYER_COUNT; p++) if(!game['gameOver'+p]) anyActive = true;
+    
+    if(anyActive){
+      game.dropTimer += dt;
+      if(game.dropTimer > game.dropInterval){
+        game.dropTimer = 0;
+        for(let p=1; p<=PLAYER_COUNT; p++){
+          if(game['gameOver'+p]) continue;
+          const piece = game['cur'+p];
+          if(!collide(piece, 0, 1, null, false)){ piece.y++; }
+          else { 
+            merge(piece, p); 
+            game['cur'+p] = spawnPiece(p); 
+            if(collide(game['cur'+p], 0, 0, null, false)) game['gameOver'+p] = true; 
+          }
+        }
+      }
+    }
+    updateHUD(); checkGameOver();
+  }
+  draw();
+  requestAnimationFrame(gameLoop);
+}
+
+function startGame(){
+  document.getElementById('lobby').style.display = 'none';
+  document.getElementById('wrap').style.display = 'flex';
+  configureForPlayerCount();
+  game = createGame();
+  updateHUD();
+  lastTime = 0;
+  requestAnimationFrame(gameLoop);
+  if(myRole === 'p1') setInterval(broadcastState, 80);
+}
+
+function useActionLocal(player, action){
+  if(myPlayerNum === player){
+    if(myRole === 'p1') handleCommand(player, action);
+    else sendCommand(action);
+  }
+}
+
+function processKey(key, isCtrl){
+  if(!game) return;
+  let action = null;
+  
+  if(myPlayerNum === 1){
+    if(isCtrl && key === 'ArrowDown') action = 'drop';
+    else if(key === 'ArrowLeft') action = 'left';
+    else if(key === 'ArrowRight') action = 'right';
+    else if(key === 'ArrowDown') action = 'down';
+    else if(key === 'ArrowUp') action = 'rotate';
+    else if(key === ' ') action = 'drop';
+    else if(['b','B','и','И'].includes(key)) action = 'bomb';
+    else if(['v','V','м','М'].includes(key)) action = 'wind';
+  } else if(myPlayerNum === 2){
+    if(isCtrl && ['s','ы','S','Ы'].includes(key)) action = 'drop';
+    else if(['a','A','ф','Ф'].includes(key)) action = 'left';
+    else if(['d','D','в','В'].includes(key)) action = 'right';
+    else if(['s','S','ы','Ы'].includes(key)) action = 'down';
+    else if(['w','W','ц','Ц'].includes(key)) action = 'rotate';
+    else if(['f','F','а','А'].includes(key)) action = 'bomb';
+    else if(['g','G','п','П'].includes(key)) action = 'wind';
+  } else if(myPlayerNum === 3){
+    if(isCtrl && ['k','к','K','К'].includes(key)) action = 'drop';
+    else if(['j','J','о','О'].includes(key)) action = 'left';
+    else if(['l','L','д','Д'].includes(key)) action = 'right';
+    else if(['k','K','к','К'].includes(key)) action = 'down';
+    else if(['i','I','ш','Ш'].includes(key)) action = 'rotate';
+    else if(['n','N','т','Т'].includes(key)) action = 'bomb';
+    else if(['m','M','ь','Ь'].includes(key)) action = 'wind';
+  }
+  
+  if(action){
+    if(myPlayerNum === 1) handleCommand(1, action);
+    else sendCommand(action);
+  }
+}
+
+window.addEventListener('keydown', e=>{
+  if(!game) return;
+  if(e.ctrlKey && (e.key === 'ArrowDown' || e.key === 's' || e.key === 'ы' || e.key === 'k' || e.key === 'к')){
+    e.preventDefault();
+    processKey(e.key, true);
+    return;
+  }
+  processKey(e.key, false);
+  if(['ArrowLeft','ArrowRight','ArrowDown','ArrowUp',' '].includes(e.key)) e.preventDefault();
+});
+
+// Тач-управление
+let touchStart = null, touchLast = null, touchMoved = false;
+canvas.addEventListener('touchstart', e=>{
+  const t = e.touches[0];
+  const rect = canvas.getBoundingClientRect();
+  const sectionWidth = rect.width / PLAYER_COUNT;
+  const playerNum = Math.floor((t.clientX - rect.left) / sectionWidth) + 1;
+  touchStart = {x:t.clientX, y:t.clientY, time:Date.now(), player: playerNum};
+  touchLast = {x:t.clientX, y:t.clientY}; touchMoved = false;
+  e.preventDefault();
+},{passive:false});
+
+canvas.addEventListener('touchmove', e=>{
+  if(!touchStart) return;
+  const t = e.touches[0];
+  const dx = t.clientX - touchLast.x;
+  const dy = t.clientY - touchLast.y;
+  const step = CELL*0.7;
+  const player = touchStart.player;
+  if(Math.abs(dx) > step){
+    const action = dx>0 ? 'right' : 'left';
+    if(myPlayerNum === 1) handleCommand(player, action);
+    else if(player === myPlayerNum) sendCommand(action);
+    touchLast.x = t.clientX; touchMoved = true;
+  }
+  if(dy > step){
+    if(myPlayerNum === 1) handleCommand(player, 'down');
+    else if(player === myPlayerNum) sendCommand('down');
+    touchLast.y = t.clientY; touchMoved = true;
+  }
+  e.preventDefault();
+},{passive:false});
+
+canvas.addEventListener('touchend', e=>{
+  if(!touchStart) return;
+  const t = e.changedTouches[0];
+  const dx = t.clientX - touchStart.x;
+  const dy = t.clientY - touchStart.y;
+  const dist = Math.hypot(dx,dy);
+  const dt = Date.now() - touchStart.time;
+  const player = touchStart.player;
+  if(!touchMoved && dist < 15 && dt < 300){
+    if(myPlayerNum === 1) handleCommand(player, 'rotate');
+    else if(player === myPlayerNum) sendCommand('rotate');
+  } else if(!touchMoved && dy < -CELL*1.5){
+    if(myPlayerNum === 1) handleCommand(player, 'drop');
+    else if(player === myPlayerNum) sendCommand('drop');
+  }
+  touchStart = null; e.preventDefault();
+},{passive:false});
+</script>
+</body>
+</html>
