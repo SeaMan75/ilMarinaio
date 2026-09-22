@@ -297,15 +297,17 @@
     getState((data, peerId) => {
       if(data) {
         if(!game) {
+          console.log("Получено первое состояние, запускаем отрисовку");
           document.getElementById('lobby').style.display = 'none';
           document.getElementById('wrap').style.display = 'flex';
           configureForPlayerCount();
           game = createGame();
+          lastTime = 0;
+          requestAnimationFrame(gameLoop); // ← ВОТ ЭТО ЗАПУСКАЕТ ОТРИСОВКУ ДЛЯ ГОСТЯ
         }
         applyRemoteState(data);
       }
     });
-  }
 
   function configureForPlayerCount(){
     if(PLAYER_COUNT === 3){ COLS = COLS_3; CELL = 16; } 
