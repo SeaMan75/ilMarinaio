@@ -21,7 +21,7 @@
   .status.err{color:#ff6a6a}
   .status.info{color:#8ab0ff}
   
-  #hud{display:flex;justify-content:space-between;width:100%;max-width:600px;gap:10px}
+  #hud{display:flex;justify-content:space-between;width:100%;max-width:800px;gap:10px}
   .playerStats{display:flex;flex-direction:column;gap:2px;padding:6px 12px;background:rgba(0,0,0,0.4);border-radius:8px;font-size:13px;flex:1}
   .playerStats.p1{border-left:3px solid #ff6a6a}
   .playerStats.p2{border-right:3px solid #6ab0ff;text-align:right}
@@ -30,8 +30,17 @@
   .playerStats.p2 h4{color:#8ab0ff}
   .playerStats b{color:#ffd27a;font-size:17px}
   
-  #gameContainer{position:relative}
-  #game{background:#000;border:4px solid #8b5a2b;border-radius:6px;box-shadow:0 0 20px rgba(255,180,80,0.3)}
+  #gameContainer{position:relative; display:flex; justify-content:center;}
+  /* ИЗМЕНЕНИЕ 1 и 2: Адаптивный размер под 30x30 клеток */
+  #game{
+    background:#000;
+    border:4px solid #8b5a2b;
+    border-radius:6px;
+    box-shadow:0 0 20px rgba(255,180,80,0.3);
+    max-width: 100%;
+    height: auto;
+    aspect-ratio: 1 / 1; /* Делает стакан квадратным, так как 30x30 клеток */
+  }
   #gameOverOverlay{position:absolute;inset:0;background:rgba(0,0,0,0.85);display:none;align-items:center;justify-content:center;flex-direction:column;gap:12px;border-radius:4px;z-index:5}
   #gameOverOverlay h2{color:#ff6a3d;font-size:28px;text-shadow:2px 2px 0 #000}
   #gameOverOverlay .winner{color:#ffd27a;font-size:20px}
@@ -44,17 +53,17 @@
   
   #hint{font-size:11px;opacity:0.75;text-align:center;background:rgba(0,0,0,0.3);padding:4px 10px;border-radius:6px;max-width:95vw}
   
-  @media (max-width:500px){
-    #game{width:280px !important;height:560px !important}
-    .playerStats{font-size:12px;padding:4px 8px}
-    .playerStats b{font-size:15px}
+  @media (max-width:600px){
+    .playerStats{font-size:11px;padding:4px 6px}
+    .playerStats b{font-size:14px}
+    #hud { max-width: 100%; }
   }
 </style>
 </head>
 <body>
 
 <div id="lobby">
-  <h1>🧱 Tetris 1vs1<br><span style="font-size:18px;opacity:0.8">Один стакан на двоих</span></h1>
+  <h1>🧱 Tetris 1vs1<br><span style="font-size:18px;opacity:0.8">Один большой стакан на двоих</span></h1>
   <div id="menu" style="text-align:center">
     <button class="lobbyBtn" onclick="createRoom()">🎮 Создать комнату</button>
     <div style="margin:14px 0;opacity:0.7">— или —</div>
@@ -87,7 +96,8 @@
   </div>
   
   <div id="gameContainer">
-    <canvas id="game" width="280" height="560"></canvas>
+    <!-- ИЗМЕНЕНИЕ 1 и 2: 30x30 клеток по 24px = 720x720px -->
+    <canvas id="game" width="720" height="720"></canvas>
     <div id="gameOverOverlay">
       <h2 id="goTitle">Конец игры</h2>
       <div class="winner" id="goWinner"></div>
@@ -107,21 +117,22 @@
 
 <script>
 // =========================================================
-//  BRICK TETRIS 1vs1 — PeerJS с 3 серверами (как раньше!)
+//  BRICK TETRIS 1vs1 — PeerJS с 3 серверами
 // =========================================================
 
-const COLS = 10, ROWS = 20, CELL = 28;
+// ИЗМЕНЕНИЕ 1 и 2: Стакан шире в 3 раза (30) и глубже в 1.5 раза (30)
+// CELL уменьшен до 24, чтобы 720x720px помещалось на большинстве экранов
+const COLS = 30, ROWS = 30, CELL = 24;
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 
 let peer = null, conn = null;
-let myRole = null;        // 'p1' (хост) или 'p2' (клиент)
+let myRole = null;        
 let game = null;          
 let lastTime = 0;
 let syncInterval = null;
 let enemyConnected = false;
 
-// ---------- НАДЁЖНЫЕ НАСТРОЙКИ PEERJS (3 сервера) ----------
 const PEER_SERVERS = [
   {host:'peerjs.com', port:443, secure:true, path:'/'},
   {host:'0.peerjs.com', port:443, secure:true, path:'/'},
@@ -133,7 +144,6 @@ const ICE_SERVERS = {iceServers:[
 ]};
 let currentServerIndex = 0;
 
-// ---------- ЦВЕТА ----------
 const BRICK_COLORS = {
   red:    {base:'#d94a35', hi:'#ff8a70', lo:'#6b1a0e'},
   yellow: {base:'#d4a04a', hi:'#ffd27a', lo:'#6b4a14'},
@@ -143,7 +153,6 @@ const BRICK_COLORS = {
 const P1_COLORS = ['red', 'yellow'];
 const P2_COLORS = ['white', 'blue'];
 
-// ---------- ФИГУРЫ ----------
 const SHAPES = {
   I: [[[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]]],
   O: [[[1,1],[1,1]]],
@@ -163,7 +172,6 @@ for(const k in SHAPES){
   }
 }
 
-// ---------- ЛОББИ ----------
 function setStatus(msg, cls=''){
   const el = document.getElementById('statusMsg');
   el.textContent = msg;
@@ -201,7 +209,6 @@ function initPeer(myId, targetId){
   peer = myId ? new Peer(myId, cfg) : new Peer(cfg);
   let connected = false;
   
-  // ТАЙМАУТ 10 СЕКУНД
   const timeout = setTimeout(() => {
     if(!connected){
       currentServerIndex++;
@@ -265,13 +272,9 @@ function setupConnection(){
   conn.on('data', (data) => {
     if(!data) return;
     if(myRole === 'p1'){
-      if(data.type === 'cmd'){
-        handleCommand(data.player, data.action);
-      }
+      if(data.type === 'cmd') handleCommand(data.player, data.action);
     } else {
-      if(data.type === 'state'){
-        applyRemoteState(data);
-      }
+      if(data.type === 'state') applyRemoteState(data);
     }
   });
   
@@ -281,7 +284,6 @@ function setupConnection(){
   });
 }
 
-// ---------- ИГРОВАЯ ЛОГИКА ----------
 function createGame(){
   return {
     board: Array.from({length:ROWS}, () => Array(COLS).fill(null)),
@@ -304,7 +306,8 @@ function spawnPiece(player){
   const colorName = colors[Math.floor(Math.random()*colors.length)];
   const color = BRICK_COLORS[colorName];
   const width = SHAPES[type][0][0].length;
-  const x = player === 1 ? 1 : COLS - width - 1;
+  // ИЗМЕНЕНИЕ: Чуть больше отступ от краев для широкого поля
+  const x = player === 1 ? 2 : COLS - width - 2;
   return {type, rot:0, shape:SHAPES[type][0], x, y:0, color, player};
 }
 
@@ -533,6 +536,17 @@ function draw(){
   ctx.strokeStyle = 'rgba(255,200,120,0.05)'; ctx.lineWidth = 1;
   for(let x=1;x<COLS;x++){ ctx.beginPath(); ctx.moveTo(x*CELL,0); ctx.lineTo(x*CELL,h); ctx.stroke(); }
   for(let y=1;y<ROWS;y++){ ctx.beginPath(); ctx.moveTo(0,y*CELL); ctx.lineTo(w,y*CELL); ctx.stroke(); }
+
+  // ИЗМЕНЕНИЕ 4: Визуальная тонкая граница середины стакана
+  const midX = (COLS / 2) * CELL;
+  ctx.beginPath();
+  ctx.moveTo(midX, 0);
+  ctx.lineTo(midX, h);
+  ctx.strokeStyle = 'rgba(255, 210, 122, 0.4)'; // Золотистая полупрозрачная
+  ctx.lineWidth = 3;
+  ctx.setLineDash([8, 8]); // Пунктирная линия
+  ctx.stroke();
+  ctx.setLineDash([]); // Сброс пунктира
   
   for(let y=0;y<ROWS;y++){
     for(let x=0;x<COLS;x++){
@@ -543,21 +557,37 @@ function draw(){
   if(game.cur2 && !game.gameOver2) drawPiece(game.cur2, game.cur1);
   
   if(game.gameOver1 || game.gameOver2){
-    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(0,0,w,h);
+    ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(0,0,w,h);
   }
 }
 
+// ИЗМЕНЕНИЕ 3: Фигура-прицел (призрак) сделана блеклой
 function drawPiece(piece, otherPiece){
   let gy = 0;
   while(!collide(piece, 0, gy+1, null, otherPiece)) gy++;
-  ctx.globalAlpha = 0.25;
-  for(let y=0;y<piece.shape.length;y++)
-    for(let x=0;x<piece.shape[y].length;x++)
-      if(piece.shape[y][x]) drawBrick(piece.x+x, piece.y+y+gy, piece.color);
+  
+  // Рисуем призрак блеклым (без тяжелых 3D градиентов)
+  ctx.globalAlpha = 0.2; 
+  for(let y=0;y<piece.shape.length;y++){
+    for(let x=0;x<piece.shape[y].length;x++){
+      if(piece.shape[y][x]){
+        const px = (piece.x+x)*CELL, py = (piece.y+y+gy)*CELL;
+        ctx.fillStyle = piece.color.hi;
+        ctx.fillRect(px, py, CELL, CELL);
+        ctx.strokeStyle = piece.color.base;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(px+0.5, py+0.5, CELL-1, CELL-1);
+      }
+    }
+  }
   ctx.globalAlpha = 1;
-  for(let y=0;y<piece.shape.length;y++)
-    for(let x=0;x<piece.shape[y].length;x++)
+
+  // Рисуем саму фигуру нормально
+  for(let y=0;y<piece.shape.length;y++){
+    for(let x=0;x<piece.shape[y].length;x++){
       if(piece.shape[y][x]) drawBrick(piece.x+x, piece.y+y, piece.color);
+    }
+  }
 }
 
 function drawBrick(x,y,color){
@@ -661,7 +691,8 @@ let touchStart = null, touchLast = null, touchMoved = false;
 canvas.addEventListener('touchstart', e=>{
   const t = e.touches[0];
   const rect = canvas.getBoundingClientRect();
-  const isLeftHalf = (t.clientX - rect.left) < rect.width/2;
+  // Логика тача идеально ложится на новое разделение: левая половина = P1, правая = P2
+  const isLeftHalf = (t.clientX - rect.left) < rect.width / 2;
   touchStart = {x:t.clientX, y:t.clientY, time:Date.now(), player: isLeftHalf ? 1 : 2};
   touchLast = {x:t.clientX, y:t.clientY}; touchMoved = false;
   e.preventDefault();
