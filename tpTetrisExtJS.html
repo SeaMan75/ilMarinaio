@@ -22,7 +22,7 @@
   
   .modeSelector{display:flex;gap:20px;align-items:center;margin:15px 0;background:rgba(0,0,0,0.3);padding:10px 20px;border-radius:8px}
   .modeSelector label{display:flex;align-items:center;gap:8px;cursor:pointer;font-size:15px}
-  .modeSelector input[type="radio"]{width:18px;height:18px;cursor:pointer}
+  .modeSelector input[type="radio"], .modeSelector input[type="checkbox"]{width:18px;height:18px;cursor:pointer}
   
   #hud{display:flex;justify-content:space-between;width:100%;max-width:900px;gap:8px;flex-wrap:wrap}
   .playerStats{display:flex;flex-direction:column;gap:2px;padding:6px 10px;background:rgba(0,0,0,0.4);border-radius:8px;font-size:12px;flex:1;min-width:120px}
@@ -85,6 +85,11 @@
     <label style="width: 100%;">
       <input type="radio" name="gameMode" value="bot">
       🤖 1 игрок + 1 компьютер
+    </label>
+    <!-- НОВАЯ ГАЛОЧКА ДЛЯ БОТА -->
+    <label id="botHalfOption" style="width: 100%; margin-top: 5px; display: none; align-items: center; gap: 8px; font-size: 14px; color: #ffd27a;">
+      <input type="checkbox" id="botHalfOnly" checked>
+      🤖 Бот играет только на своей половине
     </label>
   </div>
   
@@ -213,6 +218,8 @@
       }
     }
     document.getElementById('onlineOptions').style.display = isBotMode ? 'none' : 'flex';
+    document.getElementById('botHalfOption').style.display = isBotMode ? 'flex' : 'none';
+    
     if(isBotMode) {
       PLAYER_COUNT = 2;
       document.getElementById('stats3').style.display = 'none';
@@ -465,7 +472,7 @@
       if(!collide(rotated, dx, dy, rotated.shape, true)){
         piece.x += dx; piece.y += dy;
         piece.shape = rotated.shape; piece.rot = rotated.rot;
-        return true; // Возвращаем true при успехе
+        return true;
       }
     }
     return false;
@@ -617,7 +624,7 @@
     return (linesCleared * 0.76) - (aggregateHeight * 0.51) - (holes * 0.36) - (bumpiness * 0.18);
   }
 
-  // === ИСПРАВЛЕНИЕ ЗАВИСАНИЯ БОТА ===
+  // === ОБНОВЛЕННЫЙ БОТ С ЗАДЕРЖКОЙ И ОГРАНИЧЕНИЕМ ПОЛОВИНЫ ===
   function makeBotMove(player) {
     const piece = game['cur'+player];
     if(!piece || game['gameOver'+player]) return;
@@ -625,10 +632,19 @@
     let bestScore = -Infinity;
     let bestMove = { rot: piece.rot, x: piece.x };
 
+    // ПРОВЕРКА: играет ли бот только на своей половине
+    const botHalfOnly = document.getElementById('botHalfOnly')?.checked ?? true;
+    const halfCol = Math.floor(COLS / 2);
+
     for(let r=0; r<4; r++){
       let testShape = SHAPES[piece.type][r];
       let minX = 0;
       let maxX = COLS - testShape[0].length;
+
+      if (botHalfOnly && player === 2) {
+        minX = Math.max(minX, halfCol);
+        if (minX > maxX) continue; 
+      }
 
       for(let x=minX; x<=maxX; x++){
         let simPiece = { ...piece, rot: r, shape: testShape, x: x, y: piece.y };
@@ -658,32 +674,32 @@
       }
     }
 
-    // БЕЗОПАСНЫЕ циклы с проверкой успеха действия и лимитом попыток
     let currentRot = piece.rot;
     let rotAttempts = 0;
     while(currentRot !== bestMove.rot && rotAttempts < 4) {
-      if(!tryRotate(player)) break; // Если повернуть нельзя, выходим из цикла!
+      if(!tryRotate(player)) break; 
       currentRot = (currentRot - 1 + 4) % 4;
       rotAttempts++;
     }
     
     let moveAttempts = 0;
     while(piece.x < bestMove.x && moveAttempts < 20) {
-      if(!tryMove(player, 1, 0)) break; // Если сдвинуть нельзя, выходим!
+      if(!tryMove(player, 1, 0)) break; 
       moveAttempts++;
     }
     
     moveAttempts = 0;
     while(piece.x > bestMove.x && moveAttempts < 20) {
-      if(!tryMove(player, -1, 0)) break; // Если сдвинуть нельзя, выходим!
+      if(!tryMove(player, -1, 0)) break; 
       moveAttempts++;
     }
 
+    // УВЕЛИЧЕННАЯ ЗАДЕРЖКА ПЕРЕД ПАДЕНИЕМ (имитация человеческой реакции)
     setTimeout(() => {
       if(game && !game['gameOver'+player] && game['cur'+player] === piece) {
         hardDrop(player);
       }
-    }, 300 + Math.random() * 400);
+    }, 800 + Math.random() * 700); // 800-1500 мс
   }
  
   function handleCommand(player, action){
@@ -882,7 +898,6 @@
     const dt = ts - lastTime; lastTime = ts;
     
     if(myRole === 'p1' && game){
-      // ПОЛНАЯ ОСТАНОВКА, если игра окончена, чтобы не грузить процессор
       if(game.gameOver1 && game.gameOver2) {
         draw();
         requestAnimationFrame(gameLoop);
@@ -902,7 +917,14 @@
             if(isBotMode && p === 2) {
               if(game['cur'+p].y === 0 && !game['botThinking2']) {
                 game['botThinking2'] = true;
-                makeBotMove(p);
+                // ДОБАВЛЕНА ЗАДЕРЖКА ПЕРЕД НАЧАЛОМ ДЕЙСТВИЙ БОТА
+                setTimeout(() => {
+                  if(game && !game['gameOver'+2] && game['cur'+2] && game['cur'+2].y === 0) {
+                    makeBotMove(2);
+                  } else {
+                    game['botThinking2'] = false;
+                  }
+                }, 600 + Math.random() * 400); // 600-1000 мс на "раздумья"
               }
               continue;
             }
