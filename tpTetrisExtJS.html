@@ -365,6 +365,7 @@
   }
 
   function createGame(){
+      function createGame(){
     const g = {
       board: Array.from({length:ROWS}, () => Array(COLS).fill(null)),
       score1: 0, score2: 0, score3: 0,
@@ -372,7 +373,8 @@
       bombs1: 3, bombs2: 3, bombs3: 3,
       wind1: 5, wind2: 5, wind3: 5,
       dropTimer: 0, dropInterval: 700,
-      gameOver1: false, gameOver2: false, gameOver3: false
+      gameOver1: false, gameOver2: false, gameOver3: false,
+      botThinking2: false // <-- ДОБАВЛЕНО: флаг состояния бота
     };
     g.cur1 = spawnPiece(1);
     g.cur2 = spawnPiece(2);
@@ -487,6 +489,9 @@
     const newPiece = spawnPiece(player);
     game['cur'+player] = newPiece;
     if(collide(newPiece, 0, 0, null, false)) game['gameOver'+player] = true;
+    if(isBotMode && player === 2) {
+      game['botThinking2'] = false;
+    }
   }
 
   function softDrop(player){
@@ -790,23 +795,21 @@
     }
   }
 
-  // === НОВАЯ ФИЧА: Подсветка рядов, которые будут заполнены ===
+   // === ИСПРАВЛЕННАЯ ФИЧА: Подсветка рядов, которые будут заполнены ===
   const rowsToHighlight = [];
   
-  // Проверяем все активные фигуры всех игроков
   for(let p=1; p<=PLAYER_COUNT; p++){
     const piece = game['cur'+p];
     if(!piece || game['gameOver'+p]) continue;
 
-    // Проходим по всем рядам, которые занимает текущая фигура
     for(let py=0; py<piece.shape.length; py++){
       const boardY = piece.y + py;
       if(boardY < 0 || boardY >= ROWS) continue;
 
-      // 1. Считаем пустые клетки в этом ряду на доске
-      let emptySpots = 0;
+      // 1. Считаем УЖЕ ЗАПОЛНЕННЫЕ клетки в этом ряду на доске
+      let filledSpots = 0;
       for(let x=0; x<COLS; x++){
-        if(!game.board[boardY][x]) emptySpots++;
+        if(game.board[boardY][x]) filledSpots++;
       }
 
       // 2. Считаем, сколько блоков эта фигура добавит в этот конкретный ряд
@@ -815,8 +818,8 @@
         if(piece.shape[py][px] === 1) pieceBlocksInRow++;
       }
 
-      // 3. Если фигура заполняет ВСЕ пустые места в ряду, запоминаем этот ряд
-      if(emptySpots === pieceBlocksInRow && pieceBlocksInRow > 0){
+      // 3. Если сумма уже заполненных мест и новых блоков равна ширине стакана (COLS), ряд будет собран!
+      if(filledSpots + pieceBlocksInRow === COLS){
         if(!rowsToHighlight.includes(boardY)){
           rowsToHighlight.push(boardY);
         }
