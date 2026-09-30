@@ -72,14 +72,19 @@
 <div id="lobby">
   <h1>🧱 Tetris Online</h1>
   
-  <div class="modeSelector">
-    <label>
-      <input type="radio" name="playerMode" value="2" checked id="mode2">
-      👥 2 игрока
+    <div class="modeSelector" style="flex-direction: column; align-items: flex-start; gap: 10px;">
+    <div style="font-size: 14px; opacity: 0.8; margin-bottom: 4px;">Выберите режим:</div>
+    <label style="width: 100%;">
+      <input type="radio" name="gameMode" value="online" checked onchange="updateGameMode()">
+      🌐 Онлайн (2 или 3 игрока)
     </label>
-    <label>
-      <input type="radio" name="playerMode" value="3" id="mode3">
-      👥👥 3 игрока
+    <div id="onlineOptions" style="display: flex; gap: 15px; margin-left: 24px; margin-bottom: 10px;">
+      <label><input type="radio" name="playerMode" value="2" checked onchange="updateModeUI()"> 👥 2 игрока</label>
+      <label><input type="radio" name="playerMode" value="3" onchange="updateModeUI()"> 👥👥 3 игрока</label>
+    </div>
+    <label style="width: 100%;">
+      <input type="radio" name="gameMode" value="bot" onchange="updateGameMode()">
+      🤖 1 игрок + 1 компьютер
     </label>
   </div>
   
@@ -198,7 +203,31 @@
     }
   }
 
+    let isBotMode = false;
+
+  function updateGameMode() {
+    const modes = document.getElementsByName('gameMode');
+    for(const m of modes) {
+      if(m.checked) {
+        isBotMode = (m.value === 'bot');
+        break;
+      }
+    }
+    document.getElementById('onlineOptions').style.display = isBotMode ? 'none' : 'flex';
+    
+    if(isBotMode) {
+      PLAYER_COUNT = 2; // В режиме с ботом всегда 2 "игрока"
+      document.getElementById('stats3').style.display = 'none';
+      document.getElementById('btnBomb3').style.display = 'none';
+      document.getElementById('btnWind3').style.display = 'none';
+      canvas.style.aspectRatio = '30 / 30';
+    } else {
+      updateModeUI();
+    }
+  }
+
   function updateModeUI(){
+    if(isBotMode) return; // Игнорируем, если выбран режим с ботом
     const radios = document.getElementsByName('playerMode');
     for(const r of radios){
       if(r.checked){ PLAYER_COUNT = parseInt(r.value); break; }
@@ -215,7 +244,7 @@
     el.className = 'status ' + cls;
   }
 
-  function createRoom(){
+   function createRoom(){
     console.log("Кнопка 'Создать комнату' нажата!");
     const code = Math.random().toString(36).substring(2,7).toUpperCase();
     myRole = 'p1'; myPlayerNum = 1;
@@ -223,6 +252,20 @@
     document.getElementById('menu').style.display = 'none';
     document.getElementById('waiting').style.display = 'block';
     document.getElementById('roomCode').textContent = code;
+    
+    if(isBotMode) {
+      setStatus('Запуск игры с компьютером...', 'ok');
+      setTimeout(() => {
+        document.getElementById('lobby').style.display = 'none';
+        document.getElementById('wrap').style.display = 'flex';
+        configureForPlayerCount();
+        game = createGame();
+        lastTime = 0;
+        requestAnimationFrame(gameLoop);
+      }, 800);
+      return; // Выходим, сеть не нужна
+    }
+    
     setStatus(`Ожидание ${PLAYER_COUNT-1} игрока(ов)...`, 'info');
     
     try {
@@ -235,7 +278,11 @@
     }
   }
 
-  function joinRoomFunc(){
+    function joinRoomFunc(){
+    if(isBotMode) {
+      alert('В режиме "Против компьютера" создавайте комнату в этом же окне!');
+      return;
+    }
     console.log("Кнопка 'Присоединиться' нажата!");
     const code = document.getElementById('joinInput').value.trim().toUpperCase();
     if(!code){ alert('Введите код!'); return; }
@@ -504,6 +551,148 @@
     game['score'+player] += 10;
   }
 
+   // === ИСКУССТВЕННЫЙ ИНТЕЛЛЕКТ БОТА ===
+  function evaluateBoard(simPiece, player) {
+    // Создаем копию доски для симуляции
+    let simBoard = game.board.map(row => [...row]);
+    
+    // "Роняем" фигуру на копию доски
+    let dropY = simPiece.y;
+    while(true) {
+      let canMove = true;
+      for(let y=0; y<simPiece.shape.length; y++){
+        for(let x=0; x<simPiece.shape[y].length; x++){
+          if(simPiece.shape[y][x]) {
+            let ny = dropY + y + 1;
+            let nx = simPiece.x + x;
+            if(ny >= ROWS || (ny >= 0 && simBoard[ny][nx])) canMove = false;
+          }
+        }
+      }
+      if(!canMove) break;
+      dropY++;
+    }
+
+    // Merge в симуляции
+    let linesCleared = 0;
+    for(let y=0; y<simPiece.shape.length; y++){
+      for(let x=0; x<simPiece.shape[y].length; x++){
+        if(simPiece.shape[y][x]) {
+          let by = dropY + y;
+          let bx = simPiece.x + x;
+          if(by >= 0 && by < ROWS && bx >= 0 && bx < COLS) {
+            simBoard[by][bx] = simPiece.color;
+          }
+        }
+      }
+    }
+
+    // Считаем линии
+    for(let y=ROWS-1; y>=0; y--){
+      if(simBoard[y].every(c => c !== null)) {
+        linesCleared++;
+        simBoard.splice(y, 1);
+        simBoard.unshift(Array(COLS).fill(null));
+        y++;
+      }
+    }
+
+    // Считаем "дыры" (пустые клетки под заполненными)
+    let holes = 0;
+    for(let x=0; x<COLS; x++){
+      let blockFound = false;
+      for(let y=0; y<ROWS; y++){
+        if(simBoard[y][x]) blockFound = true;
+        else if(blockFound) holes++;
+      }
+    }
+
+    // Считаем общую высоту и "неровность" (bumpiness)
+    let aggregateHeight = 0;
+    let colHeights = [];
+    for(let x=0; x<COLS; x++){
+      let h = 0;
+      for(let y=0; y<ROWS; y++){
+        if(simBoard[y][x]) { h = ROWS - y; break; }
+      }
+      colHeights.push(h);
+      aggregateHeight += h;
+    }
+
+    let bumpiness = 0;
+    for(let x=0; x<COLS-1; x++){
+      bumpiness += Math.abs(colHeights[x] - colHeights[x+1]);
+    }
+
+    // Веса для эвристики (настроены так, чтобы бот был сильным, но делал ошибки)
+    return (linesCleared * 0.76) - (aggregateHeight * 0.51) - (holes * 0.36) - (bumpiness * 0.18);
+  }
+
+  function makeBotMove(player) {
+    const piece = game['cur'+player];
+    if(!piece || game['gameOver'+player]) return;
+
+    let bestScore = -Infinity;
+    let bestMove = { rot: piece.rot, x: piece.x };
+
+    // Перебираем все 4 поворота
+    for(let r=0; r<4; r++){
+      let testShape = SHAPES[piece.type][r];
+      let minX = 0;
+      let maxX = COLS - testShape[0].length;
+
+      // Перебираем все возможные позиции по X
+      for(let x=minX; x<=maxX; x++){
+        let simPiece = { ...piece, rot: r, shape: testShape, x: x, y: piece.y };
+        
+        // Проверяем, валидна ли эта позиция (не врезалась ли в стену при повороте)
+        let isValid = true;
+        for(let sy=0; sy<simPiece.shape.length; sy++){
+          for(let sx=0; sx<simPiece.shape[sy].length; sx++){
+            if(simPiece.shape[sy][sx]) {
+              let nx = simPiece.x + sx;
+              let ny = simPiece.y + sy;
+              if(nx < 0 || nx >= COLS || ny >= ROWS || (ny >= 0 && game.board[ny][nx])) {
+                isValid = false;
+              }
+            }
+          }
+        }
+
+        if(isValid) {
+          let score = evaluateBoard(simPiece, player);
+          // Добавляем немного случайности, чтобы бот не был идеальным роботом
+          score += (Math.random() - 0.5) * 0.5; 
+          
+          if(score > bestScore) {
+            bestScore = score;
+            bestMove = { rot: r, x: x };
+          }
+        }
+      }
+    }
+
+    // Применяем лучший ход
+    // 1. Поворачиваем нужное количество раз
+    let currentRot = piece.rot;
+    while(currentRot !== bestMove.rot) {
+      tryRotate(player);
+      currentRot = (currentRot - 1 + 4) % 4; // так как tryRotate крутит против часовой
+    }
+    
+    // 2. Двигаем по X
+    while(piece.x < bestMove.x) { tryMove(player, 1, 0); }
+    while(piece.x > bestMove.x) { tryMove(player, -1, 0); }
+
+    // 3. Бросаем вниз (с небольшой задержкой для реалистичности)
+    setTimeout(() => {
+      if(game && !game['gameOver'+player] && game['cur'+player] === piece) {
+        hardDrop(player);
+      }
+    }, 300 + Math.random() * 400); // Задержка 300-700мс
+  }
+  // === КОНЕЦ ИСКУССТВЕННОГО ИНТЕЛЛЕКТА ===
+ 
   function handleCommand(player, action){
     if(!game || game['gameOver'+player]) return;
     switch(action){
@@ -719,13 +908,27 @@
         game.dropTimer += dt;
         if(game.dropTimer > game.dropInterval){
           game.dropTimer = 0;
-          for(let p=1; p<=PLAYER_COUNT; p++){
+                    for(let p=1; p<=PLAYER_COUNT; p++){
             if(game['gameOver'+p]) continue;
+            
+            // Если это бот (Игрок 2 в режиме с ботом)
+            if(isBotMode && p === 2) {
+              // Бот принимает решение только когда появляется новая фигура или после падения
+              // Простая эвристика: если фигура только что появилась (y === 0), думаем
+              if(game['cur'+p].y === 0 && !game['botThinking'+p]) {
+                game['botThinking'+p] = true;
+                makeBotMove(p);
+              }
+              continue; // Пропускаем обычную гравитацию, бот управляет сам
+            }
+
+            // Обычная гравитация для человека
             const piece = game['cur'+p];
             if(!collide(piece, 0, 1, null, false)){ piece.y++; }
             else { 
               merge(piece, p); 
               game['cur'+p] = spawnPiece(p); 
+              if(p === 2) game['botThinking'+p] = false; // Сброс флага для бота, если он вдруг остался
               if(collide(game['cur'+p], 0, 0, null, false)) game['gameOver'+p] = true; 
             }
           }
