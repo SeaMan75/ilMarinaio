@@ -72,18 +72,18 @@
 <div id="lobby">
   <h1>🧱 Tetris Online</h1>
   
-    <div class="modeSelector" style="flex-direction: column; align-items: flex-start; gap: 10px;">
+   <div class="modeSelector" style="flex-direction: column; align-items: flex-start; gap: 10px;">
     <div style="font-size: 14px; opacity: 0.8; margin-bottom: 4px;">Выберите режим:</div>
     <label style="width: 100%;">
-      <input type="radio" name="gameMode" value="online" checked onchange="updateGameMode()">
+      <input type="radio" name="gameMode" value="online" checked>
       🌐 Онлайн (2 или 3 игрока)
     </label>
     <div id="onlineOptions" style="display: flex; gap: 15px; margin-left: 24px; margin-bottom: 10px;">
-      <label><input type="radio" name="playerMode" value="2" checked onchange="updateModeUI()"> 👥 2 игрока</label>
-      <label><input type="radio" name="playerMode" value="3" onchange="updateModeUI()"> 👥👥 3 игрока</label>
+      <label><input type="radio" name="playerMode" value="2" checked> 👥 2 игрока</label>
+      <label><input type="radio" name="playerMode" value="3"> 👥👥 3 игрока</label>
     </div>
     <label style="width: 100%;">
-      <input type="radio" name="gameMode" value="bot" onchange="updateGameMode()">
+      <input type="radio" name="gameMode" value="bot">
       🤖 1 игрок + 1 компьютер
     </label>
   </div>
@@ -995,9 +995,17 @@
     }
   }
 
-  function initEventListeners() {
-    document.getElementById('mode2').addEventListener('change', updateModeUI);
-    document.getElementById('mode3').addEventListener('change', updateModeUI);
+    function initEventListeners() {
+    // Обработчики для переключения режимов (онлайн/бот и количество игроков)
+    const gameModeRadios = document.getElementsByName('gameMode');
+    for(const radio of gameModeRadios) {
+      radio.addEventListener('change', updateGameMode);
+    }
+    
+    const playerModeRadios = document.getElementsByName('playerMode');
+    for(const radio of playerModeRadios) {
+      radio.addEventListener('change', updateModeUI);
+    }
     
     document.getElementById('btnCreate').addEventListener('click', createRoom);
     document.getElementById('btnJoin').addEventListener('click', joinRoomFunc);
