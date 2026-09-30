@@ -594,15 +594,73 @@
     }
     ctx.setLineDash([]);
     
-    for(let y=0;y<ROWS;y++){
-      for(let x=0;x<COLS;x++){
-        if(game.board[y][x]) drawBrick(x,y,game.board[y][x]);
+      // Рисуем уже упавшие кирпичи
+  for(let y=0;y<ROWS;y++){
+    for(let x=0;x<COLS;x++){
+      if(game.board[y][x]) drawBrick(x,y,game.board[y][x]);
+    }
+  }
+
+  // === НОВАЯ ФИЧА: Подсветка рядов, которые будут заполнены ===
+  const rowsToHighlight = [];
+  
+  // Проверяем все активные фигуры всех игроков
+  for(let p=1; p<=PLAYER_COUNT; p++){
+    const piece = game['cur'+p];
+    if(!piece || game['gameOver'+p]) continue;
+
+    // Проходим по всем рядам, которые занимает текущая фигура
+    for(let py=0; py<piece.shape.length; py++){
+      const boardY = piece.y + py;
+      if(boardY < 0 || boardY >= ROWS) continue;
+
+      // 1. Считаем пустые клетки в этом ряду на доске
+      let emptySpots = 0;
+      for(let x=0; x<COLS; x++){
+        if(!game.board[boardY][x]) emptySpots++;
+      }
+
+      // 2. Считаем, сколько блоков эта фигура добавит в этот конкретный ряд
+      let pieceBlocksInRow = 0;
+      for(let px=0; px<piece.shape[py].length; px++){
+        if(piece.shape[py][px] === 1) pieceBlocksInRow++;
+      }
+
+      // 3. Если фигура заполняет ВСЕ пустые места в ряду, запоминаем этот ряд
+      if(emptySpots === pieceBlocksInRow && pieceBlocksInRow > 0){
+        if(!rowsToHighlight.includes(boardY)){
+          rowsToHighlight.push(boardY);
+        }
       }
     }
-    for(let p=1; p<=PLAYER_COUNT; p++){
-      const piece = game['cur'+p];
-      if(piece && !game['gameOver'+p]) drawPiece(piece);
+  }
+
+  // Рисуем свечение для таких рядов
+  if(rowsToHighlight.length > 0){
+    ctx.save();
+    ctx.fillStyle = 'rgba(255, 215, 0, 0.35)'; // Полупрозрачное золотое свечение
+    ctx.shadowColor = '#ffd700';
+    ctx.shadowBlur = 25; // Сила свечения
+    for(const y of rowsToHighlight){
+      ctx.fillRect(0, y * CELL, canvas.width, CELL);
     }
+    ctx.restore();
+    
+    // Добавляем яркие белые границы сверху и снизу ряда для четкости
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+    for(const y of rowsToHighlight){
+      ctx.fillRect(0, y * CELL, canvas.width, 2);
+      ctx.fillRect(0, y * CELL + CELL - 2, canvas.width, 2);
+    }
+  }
+  // ============================================================
+
+  // Рисуем падающие фигуры и их призраков
+  for(let p=1; p<=PLAYER_COUNT; p++){
+    const piece = game['cur'+p];
+    if(piece && !game['gameOver'+p]) drawPiece(piece);
+  }
+   
     if(game.gameOver1 || game.gameOver2 || game.gameOver3){
       ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(0,0,w,h);
     }
