@@ -86,7 +86,6 @@
       <input type="radio" name="gameMode" value="bot">
       🤖 1 игрок + 1 компьютер
     </label>
-    <!-- НОВАЯ ГАЛОЧКА ДЛЯ БОТА -->
     <label id="botHalfOption" style="width: 100%; margin-top: 5px; display: none; align-items: center; gap: 8px; font-size: 14px; color: #ffd27a;">
       <input type="checkbox" id="botHalfOnly" checked>
       🤖 Бот играет только на своей половине
@@ -556,6 +555,7 @@
     game['score'+player] += 10;
   }
 
+  // === УЛУЧШЕННАЯ ЭВРИСТИКА БОТА ДЛЯ ШИРОКОГО ПОЛЯ ===
   function evaluateBoard(simPiece, player) {
     let simBoard = game.board.map(row => [...row]);
     let dropY = simPiece.y;
@@ -621,10 +621,16 @@
       bumpiness += Math.abs(colHeights[x] - colHeights[x+1]);
     }
 
-    return (linesCleared * 0.76) - (aggregateHeight * 0.51) - (holes * 0.36) - (bumpiness * 0.18);
+    // ВЕСА ДЛЯ ШИРОКОГО ПОЛЯ (30 колонок)
+    // Дыры и неровности наказываются ОЧЕНЬ сильно, чтобы бот их избегал
+    const wLines = 0.8;
+    const wHeight = -0.51;
+    const wHoles = -4.5; // Было -0.36, теперь огромный штраф за дыры!
+    const wBumpiness = -1.5; // Было -0.18, теперь сильный штраф за неровности
+
+    return (linesCleared * wLines) + (aggregateHeight * wHeight) + (holes * wHoles) + (bumpiness * wBumpiness);
   }
 
-  // === ОБНОВЛЕННЫЙ БОТ С ЗАДЕРЖКОЙ И ОГРАНИЧЕНИЕМ ПОЛОВИНЫ ===
   function makeBotMove(player) {
     const piece = game['cur'+player];
     if(!piece || game['gameOver'+player]) return;
@@ -632,7 +638,6 @@
     let bestScore = -Infinity;
     let bestMove = { rot: piece.rot, x: piece.x };
 
-    // ПРОВЕРКА: играет ли бот только на своей половине
     const botHalfOnly = document.getElementById('botHalfOnly')?.checked ?? true;
     const halfCol = Math.floor(COLS / 2);
 
@@ -664,7 +669,7 @@
 
         if(isValid) {
           let score = evaluateBoard(simPiece, player);
-          score += (Math.random() - 0.5) * 0.5; 
+          score += (Math.random() - 0.5) * 0.2; 
           
           if(score > bestScore) {
             bestScore = score;
@@ -694,12 +699,11 @@
       moveAttempts++;
     }
 
-    // УВЕЛИЧЕННАЯ ЗАДЕРЖКА ПЕРЕД ПАДЕНИЕМ (имитация человеческой реакции)
     setTimeout(() => {
       if(game && !game['gameOver'+player] && game['cur'+player] === piece) {
         hardDrop(player);
       }
-    }, 800 + Math.random() * 700); // 800-1500 мс
+    }, 800 + Math.random() * 700);
   }
  
   function handleCommand(player, action){
@@ -798,13 +802,21 @@
       }
     }
 
+    // === ИСПРАВЛЕННАЯ ПОДСВЕТКА СОБИРАЕМЫХ РЯДОВ ===
     const rowsToHighlight = [];
     for(let p=1; p<=PLAYER_COUNT; p++){
       const piece = game['cur'+p];
       if(!piece || game['gameOver'+p]) continue;
 
+      // 1. Сначала находим, где фигура реально приземлится (призрак)
+      let ghostY = piece.y;
+      while(!collide(piece, 0, ghostY - piece.y + 1, null, false)) {
+        ghostY++;
+      }
+
+      // 2. Проверяем заполнение рядов именно для этой финальной позиции
       for(let py=0; py<piece.shape.length; py++){
-        const boardY = piece.y + py;
+        const boardY = ghostY + py;
         if(boardY < 0 || boardY >= ROWS) continue;
 
         let filledSpots = 0;
@@ -917,14 +929,13 @@
             if(isBotMode && p === 2) {
               if(game['cur'+p].y === 0 && !game['botThinking2']) {
                 game['botThinking2'] = true;
-                // ДОБАВЛЕНА ЗАДЕРЖКА ПЕРЕД НАЧАЛОМ ДЕЙСТВИЙ БОТА
                 setTimeout(() => {
                   if(game && !game['gameOver'+2] && game['cur'+2] && game['cur'+2].y === 0) {
                     makeBotMove(2);
                   } else {
                     game['botThinking2'] = false;
                   }
-                }, 600 + Math.random() * 400); // 600-1000 мс на "раздумья"
+                }, 600 + Math.random() * 400);
               }
               continue;
             }
