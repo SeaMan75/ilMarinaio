@@ -243,7 +243,6 @@
   }
 
   function createRoom(){
-    console.log("Кнопка 'Создать комнату' нажата!");
     const code = Math.random().toString(36).substring(2,7).toUpperCase();
     myRole = 'p1'; myPlayerNum = 1;
     
@@ -466,9 +465,10 @@
       if(!collide(rotated, dx, dy, rotated.shape, true)){
         piece.x += dx; piece.y += dy;
         piece.shape = rotated.shape; piece.rot = rotated.rot;
-        return;
+        return true; // Возвращаем true при успехе
       }
     }
+    return false;
   }
 
   function hardDrop(player){
@@ -482,7 +482,6 @@
     game['cur'+player] = newPiece;
     if(collide(newPiece, 0, 0, null, false)) game['gameOver'+player] = true;
     
-    // Сброс флага бота после падения фигуры
     if(isBotMode && player === 2) {
       game['botThinking2'] = false;
     }
@@ -618,6 +617,7 @@
     return (linesCleared * 0.76) - (aggregateHeight * 0.51) - (holes * 0.36) - (bumpiness * 0.18);
   }
 
+  // === ИСПРАВЛЕНИЕ ЗАВИСАНИЯ БОТА ===
   function makeBotMove(player) {
     const piece = game['cur'+player];
     if(!piece || game['gameOver'+player]) return;
@@ -658,14 +658,26 @@
       }
     }
 
+    // БЕЗОПАСНЫЕ циклы с проверкой успеха действия и лимитом попыток
     let currentRot = piece.rot;
-    while(currentRot !== bestMove.rot) {
-      tryRotate(player);
+    let rotAttempts = 0;
+    while(currentRot !== bestMove.rot && rotAttempts < 4) {
+      if(!tryRotate(player)) break; // Если повернуть нельзя, выходим из цикла!
       currentRot = (currentRot - 1 + 4) % 4;
+      rotAttempts++;
     }
     
-    while(piece.x < bestMove.x) { tryMove(player, 1, 0); }
-    while(piece.x > bestMove.x) { tryMove(player, -1, 0); }
+    let moveAttempts = 0;
+    while(piece.x < bestMove.x && moveAttempts < 20) {
+      if(!tryMove(player, 1, 0)) break; // Если сдвинуть нельзя, выходим!
+      moveAttempts++;
+    }
+    
+    moveAttempts = 0;
+    while(piece.x > bestMove.x && moveAttempts < 20) {
+      if(!tryMove(player, -1, 0)) break; // Если сдвинуть нельзя, выходим!
+      moveAttempts++;
+    }
 
     setTimeout(() => {
       if(game && !game['gameOver'+player] && game['cur'+player] === piece) {
@@ -770,7 +782,6 @@
       }
     }
 
-    // === ПОДСВЕТКА СОБИРАЕМЫХ РЯДОВ ===
     const rowsToHighlight = [];
     for(let p=1; p<=PLAYER_COUNT; p++){
       const piece = game['cur'+p];
@@ -871,6 +882,13 @@
     const dt = ts - lastTime; lastTime = ts;
     
     if(myRole === 'p1' && game){
+      // ПОЛНАЯ ОСТАНОВКА, если игра окончена, чтобы не грузить процессор
+      if(game.gameOver1 && game.gameOver2) {
+        draw();
+        requestAnimationFrame(gameLoop);
+        return;
+      }
+
       let anyActive = false;
       for(let p=1; p<=PLAYER_COUNT; p++) if(!game['gameOver'+p]) anyActive = true;
       
