@@ -578,24 +578,47 @@
   let noteIndex = 0;
 
 
+    // === НОВОЕ: Аутентичный SID-звук Commodore 64 ===
   function playRetroNote(freq, time, duration) {
     if (!audioCtx) return;
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
+    
+    // Два генератора pulse-wave с разной шириной импульса для "жирного" SID-звука
+    const osc1 = audioCtx.createOscillator();
+    const osc2 = audioCtx.createOscillator();
+    osc1.type = 'sawtooth';  // В Web Audio нет pulse, но sawtooth + filter даёт похожий звук
+    osc2.type = 'square';
+    
+    osc1.frequency.value = freq;
+    osc2.frequency.value = freq * 1.002; // Лёгкая расстройка для "хора" (как в SID)
+    
+    // Резонансный фильтр — главная фишка SID
     const filter = audioCtx.createBiquadFilter();
-    osc.type = 'triangle';
-    osc.frequency.value = freq;
     filter.type = 'lowpass';
-    filter.frequency.value = 600; 
-    filter.Q.value = 1;
+    filter.frequency.value = Math.min(freq * 4, 3500); // Срез зависит от ноты
+    filter.Q.value = 8; // Высокий резонанс = характерный "воющий" звук SID
+    
+    // Огибающая громкости (ADSR как в SID)
+    const gain = audioCtx.createGain();
     gain.gain.setValueAtTime(0, time);
-    gain.gain.linearRampToValueAtTime(0.10, time + 0.15); 
-    gain.gain.exponentialRampToValueAtTime(0.001, time + duration); 
-    osc.connect(filter);
+    gain.gain.linearRampToValueAtTime(0.15, time + 0.01);   // Attack: очень быстрый
+    gain.gain.linearRampToValueAtTime(0.10, time + 0.08);   // Decay
+    gain.gain.setValueAtTime(0.10, time + duration - 0.05); // Sustain
+    gain.gain.linearRampToValueAtTime(0, time + duration);  // Release
+    
+    // Смешиваем два осциллятора
+    const mix = audioCtx.createGain();
+    mix.gain.value = 0.5;
+    
+    osc1.connect(mix);
+    osc2.connect(mix);
+    mix.connect(filter);
     filter.connect(gain);
     gain.connect(audioCtx.destination);
-    osc.start(time);
-    osc.stop(time + duration);
+    
+    osc1.start(time);
+    osc2.start(time);
+    osc1.stop(time + duration);
+    osc2.stop(time + duration);
   }
   // === МЕЛОДИЯ "КАТЮША" (М. Блантер) ===
   // Ноты в ля-минор. Длительность в долях (1 = четверть, 0.5 = восьмая, 2 = половинная)
