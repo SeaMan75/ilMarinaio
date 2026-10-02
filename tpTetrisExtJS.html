@@ -55,6 +55,7 @@
   .btn.bomb{background:linear-gradient(180deg,#b52a1e,#7a1a10);border-color:#ff6a4a}
   .btn.wind{background:linear-gradient(180deg,#5a3a8b,#3a255a);border-color:#aa6aff}
   .btn.shield{background:linear-gradient(180deg,#1e6a8b,#104a5a);border-color:#4affff}
+  .btn.music{background:linear-gradient(180deg,#3a6a3a,#1e4a1e);border-color:#6ac06a}
   
   #hint{font-size:10px;opacity:0.75;text-align:center;background:rgba(0,0,0,0.3);padding:4px 10px;border-radius:6px;max-width:95vw;line-height:1.4}
   
@@ -141,11 +142,13 @@
     <button class="btn bomb" onclick="useActionLocal(1, 'bomb')">💣 Бомба (B)</button>
     <button class="btn wind" onclick="useActionLocal(1, 'wind')">💨 Ветер (V)</button>
     <button class="btn shield" onclick="useActionLocal(1, 'shield')">🛡️ Щит (F)</button>
+    <!-- === НОВОЕ: Кнопка музыки === -->
+    <button class="btn music" id="musicBtn" onclick="toggleMusic()">🎵 Включить музыку</button>
   </div>
   
   <div id="hint">
-    <b>Управление для ВСЕХ:</b> ← → ↓ ↑ | Пробел (сброс) | B (бомба) | V (ветер) | F (щит на 5 сек)<br>
-    💨 <b>Ветер</b> поднимает фигуру вверх на 3 клетки. 🛡️ <b>Щит</b> защищает твою зону от фигур соседей!
+    <b>Управление для ВСЕХ:</b> ← → ↓ ↑ | Пробел (сброс) | B (бомба) | V (ветер) | F (щит)<br>
+    💨 <b>Ветер</b> поднимает фигуру. 🛡️ <b>Щит</b> защищает зону. 🎵 <b>Музыка</b> успокаивает нервы!
   </div>
 </div>
 
@@ -170,6 +173,12 @@
   let COLS = 30, CELL = 24;
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
+
+  // === НОВОЕ: Аудио контекст для звуков и музыки ===
+  let audioCtx = null;
+  function ensureAudio(){ 
+    if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); 
+  }
 
   const BRICK_COLORS = {
     red: {base:'#d94a35', hi:'#ff8a70', lo:'#6b1a0e'},
@@ -362,7 +371,6 @@
       dropTimer: 0, dropInterval: 700,
       gameOver1: false, gameOver2: false, gameOver3: false,
       botThinking2: false,
-      // === НОВОЕ: Таймеры задержки перед падением и щиты ===
       lockDelay1: 0, lockDelay2: 0, lockDelay3: 0,
       shield1: 0, shield2: 0, shield3: 0
     };
@@ -401,12 +409,11 @@
           for(let p=1; p<=PLAYER_COUNT; p++){
             if(p === piece.player) continue;
             
-            // === НОВОЕ: Проверка силового поля соперника ===
             const sectionWidth = Math.floor(COLS / PLAYER_COUNT);
             const shieldStart = (p - 1) * sectionWidth;
             const shieldEnd = p * sectionWidth;
             if(game['shield' + p] > 0 && nx >= shieldStart && nx < shieldEnd) {
-              return true; // Блокируем вход в зону с активным щитом
+              return true;
             }
 
             const other = game['cur'+p];
@@ -453,7 +460,6 @@
       game['score'+player] += points;
       game['lines'+player] += cleared;
       
-      // === НОВОЕ: Бонус за Тетрис (4 линии сразу) ===
       if(cleared === 4) {
         game['bombs'+player]++;
         game['wind'+player]++;
@@ -469,7 +475,6 @@
     if(!piece) return false;
     if(!collide(piece, dx, dy, null, true)){ 
       piece.x += dx; piece.y += dy; 
-      // === НОВОЕ: Сброс таймера задержки при успешном движении ===
       game['lockDelay' + player] = 0; 
       return true; 
     }
@@ -485,7 +490,6 @@
       if(!collide(rotated, dx, dy, rotated.shape, true)){
         piece.x += dx; piece.y += dy;
         piece.shape = rotated.shape; piece.rot = rotated.rot;
-        // === НОВОЕ: Сброс таймера задержки при успешном повороте ===
         game['lockDelay' + player] = 0;
         return true;
       }
@@ -502,7 +506,7 @@
     merge(piece, player);
     const newPiece = spawnPiece(player);
     game['cur'+player] = newPiece;
-    game['lockDelay'+player] = 0; // Сброс при жестком падении
+    game['lockDelay'+player] = 0;
     if(collide(newPiece, 0, 0, null, false)) game['gameOver'+player] = true;
     
     if(isBotMode && player === 2) {
@@ -516,16 +520,13 @@
     if(!collide(piece, 0, 1, null, false)){
       piece.y++;
       game['score'+player]++;
-      game['lockDelay'+player] = 0; // Сброс при мягком падении
-    } else {
-      // Если уже на дне, merge вызовется в gameLoop по таймеру lockDelay
+      game['lockDelay'+player] = 0;
     }
   }
 
-  // === НОВОЕ: Активация силового поля ===
   function activateShield(player) {
     if(game['gameOver'+player]) return;
-    game['shield' + player] = 5000; // 5 секунд
+    game['shield' + player] = 5000;
   }
 
   function useBomb(player){
@@ -574,6 +575,81 @@
       else break;
     }
     game['score'+player] += 10;
+  }
+
+  // === НОВОЕ: Генератор спокойной ретро-музыки (Web Audio API) ===
+  let isMusicPlaying = false;
+  let musicTimer = null;
+  let noteIndex = 0;
+
+  // Спокойная прогрессия аккордов в стиле саундтреков 90-х (Am - F - C - G)
+  const retroChords = [
+    [220.00, 261.63, 329.63], // Am (A3, C4, E4)
+    [174.61, 220.00, 261.63], // F  (F3, A3, C4)
+    [261.63, 329.63, 392.00], // C  (C4, E4, G4)
+    [196.00, 246.94, 293.66]  // G  (G3, B3, D4)
+  ];
+
+  function playRetroNote(freq, time, duration) {
+    if (!audioCtx) return;
+    
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    const filter = audioCtx.createBiquadFilter();
+
+    // 'triangle' дает мягкий, "пластиковый" звук старых консолей
+    osc.type = 'triangle';
+    osc.frequency.value = freq;
+
+    // Низкочастотный фильтр приглушает резкость, делая звук "теплым" и спокойным
+    filter.type = 'lowpass';
+    filter.frequency.value = 600; 
+    filter.Q.value = 1;
+
+    // Плавная огибающая (медленная атака и долгое затухание)
+    gain.gain.setValueAtTime(0, time);
+    gain.gain.linearRampToValueAtTime(0.10, time + 0.15); 
+    gain.gain.exponentialRampToValueAtTime(0.001, time + duration); 
+
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    osc.start(time);
+    osc.stop(time + duration);
+  }
+
+  function scheduleNextNote() {
+    if (!isMusicPlaying || !audioCtx) return;
+    
+    const tempo = 200; // мс между нотами (очень спокойный темп)
+    const chord = retroChords[noteIndex % retroChords.length];
+    // Случайная нота из аккорда создает эффект нежного арпеджио
+    const note = chord[Math.floor(Math.random() * chord.length)];
+    
+    playRetroNote(note, audioCtx.currentTime, tempo / 1000 * 3.0);
+    
+    noteIndex++;
+    musicTimer = setTimeout(scheduleNextNote, tempo);
+  }
+
+  function toggleMusic() {
+    ensureAudio();
+    const btn = document.getElementById('musicBtn');
+    
+    if (isMusicPlaying) {
+      isMusicPlaying = false;
+      clearTimeout(musicTimer);
+      btn.textContent = '🎵 Включить музыку';
+      btn.style.opacity = '0.7';
+    } else {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      isMusicPlaying = true;
+      noteIndex = 0;
+      scheduleNextNote();
+      btn.textContent = '🔇 Выключить музыку';
+      btn.style.opacity = '1';
+    }
   }
 
   function evaluateBoard(simPiece, player) {
@@ -734,7 +810,7 @@
       case 'drop': hardDrop(player); break;
       case 'bomb': useBomb(player); break;
       case 'wind': useWind(player); break;
-      case 'shield': activateShield(player); break; // === НОВОЕ ===
+      case 'shield': activateShield(player); break;
     }
   }
 
@@ -747,7 +823,6 @@
       bombs1: game.bombs1, bombs2: game.bombs2, bombs3: game.bombs3,
       wind1: game.wind1, wind2: game.wind2, wind3: game.wind3,
       gameOver1: game.gameOver1, gameOver2: game.gameOver2, gameOver3: game.gameOver3,
-      // === НОВОЕ: Синхронизация щитов ===
       shield1: game.shield1, shield2: game.shield2, shield3: game.shield3
     };
     for(let p=1; p<=PLAYER_COUNT; p++) state['cur'+p] = game['cur'+p];
@@ -768,7 +843,6 @@
     game.bombs1 = data.bombs1; game.bombs2 = data.bombs2; game.bombs3 = data.bombs3;
     game.wind1 = data.wind1; game.wind2 = data.wind2; game.wind3 = data.wind3;
     game.gameOver1 = data.gameOver1; game.gameOver2 = data.gameOver2; game.gameOver3 = data.gameOver3;
-    // === НОВОЕ: Применение состояния щитов от хоста ===
     game.shield1 = data.shield1 || 0;
     game.shield2 = data.shield2 || 0;
     game.shield3 = data.shield3 || 0;
@@ -822,17 +896,14 @@
     }
     ctx.setLineDash([]);
     
-    // === НОВОЕ: Отрисовка силовых полей ===
     for(let p=1; p<=PLAYER_COUNT; p++){
       if(game['shield' + p] > 0) {
         const startX = (p - 1) * sectionWidth * CELL;
         const width = sectionWidth * CELL;
         ctx.save();
-        // Пульсирующий голубой фон
         const pulse = 0.15 + 0.1 * Math.sin(lastTime / 150);
         ctx.fillStyle = `rgba(100, 220, 255, ${pulse})`;
         ctx.fillRect(startX, 0, width, h);
-        // Яркая граница
         ctx.strokeStyle = 'rgba(150, 255, 255, 0.9)';
         ctx.lineWidth = 4;
         ctx.strokeRect(startX + 2, 0, width - 4, h);
@@ -983,13 +1054,12 @@
 
             const piece = game['cur'+p];
             
-            // === НОВОЕ: Логика задержки перед падением (Lock Delay) ===
             if(!collide(piece, 0, 1, null, false)){ 
               piece.y++; 
-              game['lockDelay' + p] = 0; // Сброс, если фигура свободно падает
+              game['lockDelay' + p] = 0;
             } else {
-              game['lockDelay' + p] += dt; // Накопление времени на дне
-              if(game['lockDelay' + p] >= 1000) { // 1 секунда задержки
+              game['lockDelay' + p] += dt;
+              if(game['lockDelay' + p] >= 1000) {
                 merge(piece, p); 
                 game['cur'+p] = spawnPiece(p); 
                 game['lockDelay' + p] = 0;
@@ -1001,7 +1071,6 @@
         }
       }
       
-      // === НОВОЕ: Уменьшение таймеров щитов ===
       for(let p=1; p<=PLAYER_COUNT; p++){
         if(game['shield' + p] > 0) {
           game['shield' + p] -= dt;
@@ -1033,7 +1102,6 @@
     }
   }
 
-  // === НОВОЕ: Универсальное управление для всех игроков ===
   function processKey(key, isCtrl){
     if(!game || game['gameOver' + myPlayerNum]) return;
     let action = null;
@@ -1046,7 +1114,7 @@
     else if(key === ' ') action = 'drop';
     else if(['b','B','и','И'].includes(key)) action = 'bomb';
     else if(['v','V','м','М'].includes(key)) action = 'wind';
-    else if(['f','F','а','А'].includes(key)) action = 'shield'; // === НОВОЕ ===
+    else if(['f','F','а','А'].includes(key)) action = 'shield';
     
     if(action){
       if(myRole === 'p1') handleCommand(myPlayerNum, action);
