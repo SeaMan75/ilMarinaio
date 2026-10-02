@@ -52,10 +52,9 @@
   #controls{display:flex;gap:10px;margin-top:4px;flex-wrap:wrap;justify-content:center}
   .btn{background:linear-gradient(180deg,#6b3a1e,#4a2512);color:#fff;border:2px solid #c88a4a;border-radius:8px;padding:8px 14px;font-size:14px;font-weight:bold;cursor:pointer;box-shadow:0 3px 0 #2a1208}
   .btn:active{transform:translateY(2px);box-shadow:0 1px 0 #2a1208}
-  .btn.bomb1{background:linear-gradient(180deg,#b52a1e,#7a1a10);border-color:#ff6a4a}
-  .btn.bomb2{background:linear-gradient(180deg,#1e4a8b,#102a5a);border-color:#4a8aff}
-  .btn.bomb3{background:linear-gradient(180deg,#1e8b3a,#105a2a);border-color:#4aff6a}
+  .btn.bomb{background:linear-gradient(180deg,#b52a1e,#7a1a10);border-color:#ff6a4a}
   .btn.wind{background:linear-gradient(180deg,#5a3a8b,#3a255a);border-color:#aa6aff}
+  .btn.shield{background:linear-gradient(180deg,#1e6a8b,#104a5a);border-color:#4affff}
   
   #hint{font-size:10px;opacity:0.75;text-align:center;background:rgba(0,0,0,0.3);padding:4px 10px;border-radius:6px;max-width:95vw;line-height:1.4}
   
@@ -139,26 +138,21 @@
   </div>
   
   <div id="controls">
-    <button class="btn bomb1" id="btnBomb1">💣 P1 (B)</button>
-    <button class="btn wind" id="btnWind1">💨 Ветер P1 (V)</button>
-    <button class="btn bomb2" id="btnBomb2">💣 P2 (F)</button>
-    <button class="btn wind" id="btnWind2">💨 Ветер P2 (G)</button>
-    <button class="btn bomb3" id="btnBomb3" style="display:none">💣 P3 (N)</button>
-    <button class="btn wind" id="btnWind3" style="display:none">💨 Ветер P3 (M)</button>
+    <button class="btn bomb" onclick="useActionLocal(1, 'bomb')">💣 Бомба (B)</button>
+    <button class="btn wind" onclick="useActionLocal(1, 'wind')">💨 Ветер (V)</button>
+    <button class="btn shield" onclick="useActionLocal(1, 'shield')">🛡️ Щит (F)</button>
   </div>
   
   <div id="hint">
-    <b>P1:</b> ← → ↓ ↑ | Ctrl+↓ сброс | B бомба | V ветер<br>
-    <b>P2:</b> A D S W | Ctrl+S сброс | F бомба | G ветер<br>
-    <b>P3:</b> J L K I | Ctrl+K сброс | N бомба | M ветер<br>
-    💨 <b>Ветер</b> поднимает твою фигуру вверх на 3 клетки, если она застряла!
+    <b>Управление для ВСЕХ:</b> ← → ↓ ↑ | Пробел (сброс) | B (бомба) | V (ветер) | F (щит на 5 сек)<br>
+    💨 <b>Ветер</b> поднимает фигуру вверх на 3 клетки. 🛡️ <b>Щит</b> защищает твою зону от фигур соседей!
   </div>
 </div>
 
 <script type="module">
   import { joinRoom } from 'https://esm.sh/trystero@0.20.0';
 
-  const APP_ID = 'brick-tetris-v3-multi';
+  const APP_ID = 'brick-tetris-v4-multi';
   let room = null;
   let myRole = null; 
   let myPlayerNum = 0; 
@@ -222,8 +216,6 @@
     if(isBotMode) {
       PLAYER_COUNT = 2;
       document.getElementById('stats3').style.display = 'none';
-      document.getElementById('btnBomb3').style.display = 'none';
-      document.getElementById('btnWind3').style.display = 'none';
       canvas.style.aspectRatio = '30 / 30';
     } else {
       updateModeUI();
@@ -237,8 +229,6 @@
       if(r.checked){ PLAYER_COUNT = parseInt(r.value); break; }
     }
     document.getElementById('stats3').style.display = PLAYER_COUNT === 3 ? 'flex' : 'none';
-    document.getElementById('btnBomb3').style.display = PLAYER_COUNT === 3 ? 'inline-block' : 'none';
-    document.getElementById('btnWind3').style.display = PLAYER_COUNT === 3 ? 'inline-block' : 'none';
     canvas.style.aspectRatio = `${PLAYER_COUNT === 3 ? 45 : 30} / 30`;
   }
 
@@ -371,7 +361,10 @@
       wind1: 5, wind2: 5, wind3: 5,
       dropTimer: 0, dropInterval: 700,
       gameOver1: false, gameOver2: false, gameOver3: false,
-      botThinking2: false
+      botThinking2: false,
+      // === НОВОЕ: Таймеры задержки перед падением и щиты ===
+      lockDelay1: 0, lockDelay2: 0, lockDelay3: 0,
+      shield1: 0, shield2: 0, shield3: 0
     };
     g.cur1 = spawnPiece(1);
     g.cur2 = spawnPiece(2);
@@ -407,6 +400,15 @@
         if(checkOtherPieces){
           for(let p=1; p<=PLAYER_COUNT; p++){
             if(p === piece.player) continue;
+            
+            // === НОВОЕ: Проверка силового поля соперника ===
+            const sectionWidth = Math.floor(COLS / PLAYER_COUNT);
+            const shieldStart = (p - 1) * sectionWidth;
+            const shieldEnd = p * sectionWidth;
+            if(game['shield' + p] > 0 && nx >= shieldStart && nx < shieldEnd) {
+              return true; // Блокируем вход в зону с активным щитом
+            }
+
             const other = game['cur'+p];
             if(!other) continue;
             const canOtherMoveDown = !collide(other, 0, 1, null, false);
@@ -450,6 +452,13 @@
       const points = [0,100,300,500,800][cleared];
       game['score'+player] += points;
       game['lines'+player] += cleared;
+      
+      // === НОВОЕ: Бонус за Тетрис (4 линии сразу) ===
+      if(cleared === 4) {
+        game['bombs'+player]++;
+        game['wind'+player]++;
+      }
+      
       const totalLines = game.lines1 + game.lines2 + (game.lines3||0);
       game.dropInterval = Math.max(120, 700 - Math.floor(totalLines/10)*40);
     }
@@ -458,19 +467,26 @@
   function tryMove(player, dx, dy){
     const piece = game['cur'+player];
     if(!piece) return false;
-    if(!collide(piece, dx, dy, null, true)){ piece.x += dx; piece.y += dy; return true; }
+    if(!collide(piece, dx, dy, null, true)){ 
+      piece.x += dx; piece.y += dy; 
+      // === НОВОЕ: Сброс таймера задержки при успешном движении ===
+      game['lockDelay' + player] = 0; 
+      return true; 
+    }
     return false;
   }
 
   function tryRotate(player){
     const piece = game['cur'+player];
-    if(!piece) return;
+    if(!piece) return false;
     const rotated = rotate(piece, 1);
     const kicks = [[0,0],[-1,0],[1,0],[-2,0],[2,0],[0,-1],[-1,-1],[1,-1],[0,-2]];
     for(const [dx,dy] of kicks){
       if(!collide(rotated, dx, dy, rotated.shape, true)){
         piece.x += dx; piece.y += dy;
         piece.shape = rotated.shape; piece.rot = rotated.rot;
+        // === НОВОЕ: Сброс таймера задержки при успешном повороте ===
+        game['lockDelay' + player] = 0;
         return true;
       }
     }
@@ -486,6 +502,7 @@
     merge(piece, player);
     const newPiece = spawnPiece(player);
     game['cur'+player] = newPiece;
+    game['lockDelay'+player] = 0; // Сброс при жестком падении
     if(collide(newPiece, 0, 0, null, false)) game['gameOver'+player] = true;
     
     if(isBotMode && player === 2) {
@@ -499,12 +516,16 @@
     if(!collide(piece, 0, 1, null, false)){
       piece.y++;
       game['score'+player]++;
+      game['lockDelay'+player] = 0; // Сброс при мягком падении
     } else {
-      merge(piece, player);
-      const newPiece = spawnPiece(player);
-      game['cur'+player] = newPiece;
-      if(collide(newPiece, 0, 0, null, false)) game['gameOver'+player] = true;
+      // Если уже на дне, merge вызовется в gameLoop по таймеру lockDelay
     }
+  }
+
+  // === НОВОЕ: Активация силового поля ===
+  function activateShield(player) {
+    if(game['gameOver'+player]) return;
+    game['shield' + player] = 5000; // 5 секунд
   }
 
   function useBomb(player){
@@ -555,7 +576,6 @@
     game['score'+player] += 10;
   }
 
-  // === УЛУЧШЕННАЯ ЭВРИСТИКА БОТА ДЛЯ ШИРОКОГО ПОЛЯ ===
   function evaluateBoard(simPiece, player) {
     let simBoard = game.board.map(row => [...row]);
     let dropY = simPiece.y;
@@ -621,12 +641,10 @@
       bumpiness += Math.abs(colHeights[x] - colHeights[x+1]);
     }
 
-    // ВЕСА ДЛЯ ШИРОКОГО ПОЛЯ (30 колонок)
-    // Дыры и неровности наказываются ОЧЕНЬ сильно, чтобы бот их избегал
     const wLines = 0.8;
     const wHeight = -0.51;
-    const wHoles = -4.5; // Было -0.36, теперь огромный штраф за дыры!
-    const wBumpiness = -1.5; // Было -0.18, теперь сильный штраф за неровности
+    const wHoles = -4.5;
+    const wBumpiness = -1.5;
 
     return (linesCleared * wLines) + (aggregateHeight * wHeight) + (holes * wHoles) + (bumpiness * wBumpiness);
   }
@@ -716,6 +734,7 @@
       case 'drop': hardDrop(player); break;
       case 'bomb': useBomb(player); break;
       case 'wind': useWind(player); break;
+      case 'shield': activateShield(player); break; // === НОВОЕ ===
     }
   }
 
@@ -727,7 +746,9 @@
       lines1: game.lines1, lines2: game.lines2, lines3: game.lines3,
       bombs1: game.bombs1, bombs2: game.bombs2, bombs3: game.bombs3,
       wind1: game.wind1, wind2: game.wind2, wind3: game.wind3,
-      gameOver1: game.gameOver1, gameOver2: game.gameOver2, gameOver3: game.gameOver3
+      gameOver1: game.gameOver1, gameOver2: game.gameOver2, gameOver3: game.gameOver3,
+      // === НОВОЕ: Синхронизация щитов ===
+      shield1: game.shield1, shield2: game.shield2, shield3: game.shield3
     };
     for(let p=1; p<=PLAYER_COUNT; p++) state['cur'+p] = game['cur'+p];
     try { sendState(state); } catch(e){}
@@ -747,6 +768,11 @@
     game.bombs1 = data.bombs1; game.bombs2 = data.bombs2; game.bombs3 = data.bombs3;
     game.wind1 = data.wind1; game.wind2 = data.wind2; game.wind3 = data.wind3;
     game.gameOver1 = data.gameOver1; game.gameOver2 = data.gameOver2; game.gameOver3 = data.gameOver3;
+    // === НОВОЕ: Применение состояния щитов от хоста ===
+    game.shield1 = data.shield1 || 0;
+    game.shield2 = data.shield2 || 0;
+    game.shield3 = data.shield3 || 0;
+    
     updateHUD(); checkGameOver();
   }
 
@@ -796,25 +822,40 @@
     }
     ctx.setLineDash([]);
     
+    // === НОВОЕ: Отрисовка силовых полей ===
+    for(let p=1; p<=PLAYER_COUNT; p++){
+      if(game['shield' + p] > 0) {
+        const startX = (p - 1) * sectionWidth * CELL;
+        const width = sectionWidth * CELL;
+        ctx.save();
+        // Пульсирующий голубой фон
+        const pulse = 0.15 + 0.1 * Math.sin(lastTime / 150);
+        ctx.fillStyle = `rgba(100, 220, 255, ${pulse})`;
+        ctx.fillRect(startX, 0, width, h);
+        // Яркая граница
+        ctx.strokeStyle = 'rgba(150, 255, 255, 0.9)';
+        ctx.lineWidth = 4;
+        ctx.strokeRect(startX + 2, 0, width - 4, h);
+        ctx.restore();
+      }
+    }
+
     for(let y=0;y<ROWS;y++){
       for(let x=0;x<COLS;x++){
         if(game.board[y][x]) drawBrick(x,y,game.board[y][x]);
       }
     }
 
-    // === ИСПРАВЛЕННАЯ ПОДСВЕТКА СОБИРАЕМЫХ РЯДОВ ===
     const rowsToHighlight = [];
     for(let p=1; p<=PLAYER_COUNT; p++){
       const piece = game['cur'+p];
       if(!piece || game['gameOver'+p]) continue;
 
-      // 1. Сначала находим, где фигура реально приземлится (призрак)
       let ghostY = piece.y;
       while(!collide(piece, 0, ghostY - piece.y + 1, null, false)) {
         ghostY++;
       }
 
-      // 2. Проверяем заполнение рядов именно для этой финальной позиции
       for(let py=0; py<piece.shape.length; py++){
         const boardY = ghostY + py;
         if(boardY < 0 || boardY >= ROWS) continue;
@@ -910,7 +951,7 @@
     const dt = ts - lastTime; lastTime = ts;
     
     if(myRole === 'p1' && game){
-      if(game.gameOver1 && game.gameOver2) {
+      if(game.gameOver1 && game.gameOver2 && (PLAYER_COUNT === 2 || game.gameOver3)) {
         draw();
         requestAnimationFrame(gameLoop);
         return;
@@ -941,16 +982,33 @@
             }
 
             const piece = game['cur'+p];
-            if(!collide(piece, 0, 1, null, false)){ piece.y++; }
-            else { 
-              merge(piece, p); 
-              game['cur'+p] = spawnPiece(p); 
-              if(p === 2) game['botThinking2'] = false;
-              if(collide(game['cur'+p], 0, 0, null, false)) game['gameOver'+p] = true; 
+            
+            // === НОВОЕ: Логика задержки перед падением (Lock Delay) ===
+            if(!collide(piece, 0, 1, null, false)){ 
+              piece.y++; 
+              game['lockDelay' + p] = 0; // Сброс, если фигура свободно падает
+            } else {
+              game['lockDelay' + p] += dt; // Накопление времени на дне
+              if(game['lockDelay' + p] >= 1000) { // 1 секунда задержки
+                merge(piece, p); 
+                game['cur'+p] = spawnPiece(p); 
+                game['lockDelay' + p] = 0;
+                if(p === 2) game['botThinking2'] = false;
+                if(collide(game['cur'+p], 0, 0, null, false)) game['gameOver'+p] = true; 
+              }
             }
           }
         }
       }
+      
+      // === НОВОЕ: Уменьшение таймеров щитов ===
+      for(let p=1; p<=PLAYER_COUNT; p++){
+        if(game['shield' + p] > 0) {
+          game['shield' + p] -= dt;
+          if(game['shield' + p] < 0) game['shield' + p] = 0;
+        }
+      }
+
       updateHUD(); checkGameOver();
     }
     draw();
@@ -975,39 +1033,23 @@
     }
   }
 
+  // === НОВОЕ: Универсальное управление для всех игроков ===
   function processKey(key, isCtrl){
-    if(!game) return;
+    if(!game || game['gameOver' + myPlayerNum]) return;
     let action = null;
     
-    if(myPlayerNum === 1){
-      if(isCtrl && key === 'ArrowDown') action = 'drop';
-      else if(key === 'ArrowLeft') action = 'left';
-      else if(key === 'ArrowRight') action = 'right';
-      else if(key === 'ArrowDown') action = 'down';
-      else if(key === 'ArrowUp') action = 'rotate';
-      else if(key === ' ') action = 'drop';
-      else if(['b','B','и','И'].includes(key)) action = 'bomb';
-      else if(['v','V','м','М'].includes(key)) action = 'wind';
-    } else if(myPlayerNum === 2){
-      if(isCtrl && ['s','ы','S','Ы'].includes(key)) action = 'drop';
-      else if(['a','A','ф','Ф'].includes(key)) action = 'left';
-      else if(['d','D','в','В'].includes(key)) action = 'right';
-      else if(['s','S','ы','Ы'].includes(key)) action = 'down';
-      else if(['w','W','ц','Ц'].includes(key)) action = 'rotate';
-      else if(['f','F','а','А'].includes(key)) action = 'bomb';
-      else if(['g','G','п','П'].includes(key)) action = 'wind';
-    } else if(myPlayerNum === 3){
-      if(isCtrl && ['k','к','K','К'].includes(key)) action = 'drop';
-      else if(['j','J','о','О'].includes(key)) action = 'left';
-      else if(['l','L','д','Д'].includes(key)) action = 'right';
-      else if(['k','K','к','К'].includes(key)) action = 'down';
-      else if(['i','I','ш','Ш'].includes(key)) action = 'rotate';
-      else if(['n','N','т','Т'].includes(key)) action = 'bomb';
-      else if(['m','M','ь','Ь'].includes(key)) action = 'wind';
-    }
+    if(isCtrl && key === 'ArrowDown') action = 'drop';
+    else if(key === 'ArrowLeft') action = 'left';
+    else if(key === 'ArrowRight') action = 'right';
+    else if(key === 'ArrowDown') action = 'down';
+    else if(key === 'ArrowUp') action = 'rotate';
+    else if(key === ' ') action = 'drop';
+    else if(['b','B','и','И'].includes(key)) action = 'bomb';
+    else if(['v','V','м','М'].includes(key)) action = 'wind';
+    else if(['f','F','а','А'].includes(key)) action = 'shield'; // === НОВОЕ ===
     
     if(action){
-      if(myPlayerNum === 1) handleCommand(1, action);
+      if(myRole === 'p1') handleCommand(myPlayerNum, action);
       else sendCommand(action);
     }
   }
@@ -1026,13 +1068,6 @@
     document.getElementById('btnCreate').addEventListener('click', createRoom);
     document.getElementById('btnJoin').addEventListener('click', joinRoomFunc);
     document.getElementById('btnRestart').addEventListener('click', () => location.reload());
-    
-    document.getElementById('btnBomb1').addEventListener('click', () => useActionLocal(1, 'bomb'));
-    document.getElementById('btnWind1').addEventListener('click', () => useActionLocal(1, 'wind'));
-    document.getElementById('btnBomb2').addEventListener('click', () => useActionLocal(2, 'bomb'));
-    document.getElementById('btnWind2').addEventListener('click', () => useActionLocal(2, 'wind'));
-    document.getElementById('btnBomb3').addEventListener('click', () => useActionLocal(3, 'bomb'));
-    document.getElementById('btnWind3').addEventListener('click', () => useActionLocal(3, 'wind'));
 
     window.addEventListener('keydown', e=>{
       if(!game) return;
