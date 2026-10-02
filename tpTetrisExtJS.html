@@ -142,7 +142,6 @@
     <button class="btn bomb" onclick="useActionLocal(1, 'bomb')">💣 Бомба (B)</button>
     <button class="btn wind" onclick="useActionLocal(1, 'wind')">💨 Ветер (V)</button>
     <button class="btn shield" onclick="useActionLocal(1, 'shield')">🛡️ Щит (F)</button>
-    <!-- === НОВОЕ: Кнопка музыки === -->
     <button class="btn music" id="musicBtn" onclick="toggleMusic()">🎵 Включить музыку</button>
   </div>
   
@@ -174,7 +173,6 @@
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
 
-  // === НОВОЕ: Аудио контекст для звуков и музыки ===
   let audioCtx = null;
   function ensureAudio(){ 
     if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); 
@@ -371,7 +369,8 @@
       dropTimer: 0, dropInterval: 700,
       gameOver1: false, gameOver2: false, gameOver3: false,
       botThinking2: false,
-      lockDelay1: 0, lockDelay2: 0, lockDelay3: 0,
+      // === ИСПРАВЛЕНИЕ: Используем lockStart вместо lockDelay для строгого лимита в 1 секунду ===
+      lockStart1: 0, lockStart2: 0, lockStart3: 0,
       shield1: 0, shield2: 0, shield3: 0
     };
     g.cur1 = spawnPiece(1);
@@ -475,7 +474,7 @@
     if(!piece) return false;
     if(!collide(piece, dx, dy, null, true)){ 
       piece.x += dx; piece.y += dy; 
-      game['lockDelay' + player] = 0; 
+      // === ИСПРАВЛЕНИЕ: Убрали сброс таймера, чтобы предотвратить бесконечное управление ===
       return true; 
     }
     return false;
@@ -490,7 +489,7 @@
       if(!collide(rotated, dx, dy, rotated.shape, true)){
         piece.x += dx; piece.y += dy;
         piece.shape = rotated.shape; piece.rot = rotated.rot;
-        game['lockDelay' + player] = 0;
+        // === ИСПРАВЛЕНИЕ: Убрали сброс таймера ===
         return true;
       }
     }
@@ -503,14 +502,16 @@
     let dropped = 0;
     while(!collide(piece, 0, 1, null, false)){ piece.y++; dropped++; }
     game['score'+player] += dropped*2;
-    merge(piece, player);
-    const newPiece = spawnPiece(player);
-    game['cur'+player] = newPiece;
-    game['lockDelay'+player] = 0;
-    if(collide(newPiece, 0, 0, null, false)) game['gameOver'+player] = true;
     
-    if(isBotMode && player === 2) {
+    if (isBotMode && player === 2) {
+      merge(piece, player);
+      game['cur'+player] = spawnPiece(player);
+      game['lockStart' + player] = 0;
       game['botThinking2'] = false;
+      if(collide(game['cur'+player], 0, 0, null, false)) game['gameOver'+player] = true;
+    } else {
+      // === ИСПРАВЛЕНИЕ: Запускаем строгий таймер в 1 секунду после хард-дропа ===
+      game['lockStart' + player] = performance.now();
     }
   }
 
@@ -520,7 +521,6 @@
     if(!collide(piece, 0, 1, null, false)){
       piece.y++;
       game['score'+player]++;
-      game['lockDelay'+player] = 0;
     }
   }
 
@@ -577,58 +577,43 @@
     game['score'+player] += 10;
   }
 
-  // === НОВОЕ: Генератор спокойной ретро-музыки (Web Audio API) ===
   let isMusicPlaying = false;
   let musicTimer = null;
   let noteIndex = 0;
 
-  // Спокойная прогрессия аккордов в стиле саундтреков 90-х (Am - F - C - G)
   const retroChords = [
-    [220.00, 261.63, 329.63], // Am (A3, C4, E4)
-    [174.61, 220.00, 261.63], // F  (F3, A3, C4)
-    [261.63, 329.63, 392.00], // C  (C4, E4, G4)
-    [196.00, 246.94, 293.66]  // G  (G3, B3, D4)
+    [220.00, 261.63, 329.63],
+    [174.61, 220.00, 261.63],
+    [261.63, 329.63, 392.00],
+    [196.00, 246.94, 293.66]
   ];
 
   function playRetroNote(freq, time, duration) {
     if (!audioCtx) return;
-    
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
     const filter = audioCtx.createBiquadFilter();
-
-    // 'triangle' дает мягкий, "пластиковый" звук старых консолей
     osc.type = 'triangle';
     osc.frequency.value = freq;
-
-    // Низкочастотный фильтр приглушает резкость, делая звук "теплым" и спокойным
     filter.type = 'lowpass';
     filter.frequency.value = 600; 
     filter.Q.value = 1;
-
-    // Плавная огибающая (медленная атака и долгое затухание)
     gain.gain.setValueAtTime(0, time);
     gain.gain.linearRampToValueAtTime(0.10, time + 0.15); 
     gain.gain.exponentialRampToValueAtTime(0.001, time + duration); 
-
     osc.connect(filter);
     filter.connect(gain);
     gain.connect(audioCtx.destination);
-
     osc.start(time);
     osc.stop(time + duration);
   }
 
   function scheduleNextNote() {
     if (!isMusicPlaying || !audioCtx) return;
-    
-    const tempo = 200; // мс между нотами (очень спокойный темп)
+    const tempo = 200;
     const chord = retroChords[noteIndex % retroChords.length];
-    // Случайная нота из аккорда создает эффект нежного арпеджио
     const note = chord[Math.floor(Math.random() * chord.length)];
-    
     playRetroNote(note, audioCtx.currentTime, tempo / 1000 * 3.0);
-    
     noteIndex++;
     musicTimer = setTimeout(scheduleNextNote, tempo);
   }
@@ -636,7 +621,6 @@
   function toggleMusic() {
     ensureAudio();
     const btn = document.getElementById('musicBtn');
-    
     if (isMusicPlaying) {
       isMusicPlaying = false;
       clearTimeout(musicTimer);
@@ -1053,19 +1037,27 @@
             }
 
             const piece = game['cur'+p];
-            
-            if(!collide(piece, 0, 1, null, false)){ 
-              piece.y++; 
-              game['lockDelay' + p] = 0;
-            } else {
-              game['lockDelay' + p] += dt;
-              if(game['lockDelay' + p] >= 1000) {
+            if (!piece) continue;
+
+            // === ИСПРАВЛЕНИЕ: Строгая логика блокировки на 1 секунду ===
+            const isOnGround = collide(piece, 0, 1, null, false);
+
+            if (isOnGround) {
+              if (game['lockStart' + p] === 0) {
+                game['lockStart' + p] = lastTime; // Запоминаем момент ПЕРВОГО касания дна
+              }
+              
+              if (lastTime - game['lockStart' + p] >= 1000) {
                 merge(piece, p); 
                 game['cur'+p] = spawnPiece(p); 
-                game['lockDelay' + p] = 0;
-                if(p === 2) game['botThinking2'] = false;
-                if(collide(game['cur'+p], 0, 0, null, false)) game['gameOver'+p] = true; 
+                game['lockStart' + p] = 0;
+                if (p === 2) game['botThinking2'] = false;
+                if (collide(game['cur'+p], 0, 0, null, false)) game['gameOver'+p] = true; 
               }
+            } else {
+              // Фигура в воздухе, таймер сброшен
+              game['lockStart' + p] = 0;
+              piece.y++;
             }
           }
         }
