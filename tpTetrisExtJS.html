@@ -577,12 +577,6 @@
   let musicTimer = null;
   let noteIndex = 0;
 
-  const retroChords = [
-    [220.00, 261.63, 329.63],
-    [174.61, 220.00, 261.63],
-    [261.63, 329.63, 392.00],
-    [196.00, 246.94, 293.66]
-  ];
 
   function playRetroNote(freq, time, duration) {
     if (!audioCtx) return;
@@ -603,16 +597,62 @@
     osc.start(time);
     osc.stop(time + duration);
   }
+  // === МЕЛОДИЯ "КАТЮША" (М. Блантер) ===
+  // Ноты в ля-минор. Длительность в долях (1 = четверть, 0.5 = восьмая, 2 = половинная)
+  // 0 = пауза
+  const KATYUSHA_TEMPO = 420; // мс на четверть (спокойный темп марша)
+  
+  // Частоты нот (Гц)
+  const N = {
+    _: 0,       // пауза
+    G3: 196.00, A3: 220.00, B3: 246.94,
+    C4: 261.63, D4: 293.66, E4: 329.63, F4: 349.23, G4: 392.00,
+    A4: 440.00, B4: 493.88,
+    C5: 523.25, D5: 587.33, E5: 659.25, F5: 698.46, G5: 783.99, A5: 880.00
+  };
+
+  // Мелодия: [нота, длительность в долях]
+  const KATYUSHA = [
+    // "Расцветали яблони и груши"
+    [N.A4, 1], [N.A4, 0.5], [N.B4, 0.5], [N.C5, 1], [N.D5, 1],
+    [N.E5, 1], [N.E5, 0.5], [N.D5, 0.5], [N.C5, 1], [N.B4, 1],
+    // "Поплыли туманы над рекой"
+    [N.A4, 1], [N.A4, 0.5], [N.B4, 0.5], [N.C5, 1], [N.D5, 1],
+    [N.C5, 1], [N.B4, 0.5], [N.A4, 0.5], [N.G3, 1], [N.A4, 1],
+    // "Выходила на берег Катюша"
+    [N.E4, 1], [N.E4, 0.5], [N.F4, 0.5], [N.G4, 1], [N.A4, 1],
+    [N.B4, 1], [N.B4, 0.5], [N.A4, 0.5], [N.G4, 1], [N.F4, 1],
+    // "На высокий берег крутой"
+    [N.E4, 1], [N.E4, 0.5], [N.F4, 0.5], [N.G4, 1], [N.A4, 1],
+    [N.G4, 1], [N.F4, 0.5], [N.E4, 0.5], [N.D4, 1], [N.C4, 1],
+    // "Ой ты, песня, песенка девичья"
+    [N.A4, 1], [N.A4, 0.5], [N.B4, 0.5], [N.C5, 1], [N.D5, 1],
+    [N.E5, 1], [N.E5, 0.5], [N.D5, 0.5], [N.C5, 1], [N.B4, 1],
+    // "Ты лети за ясным солнцем вслед"
+    [N.A4, 1], [N.A4, 0.5], [N.B4, 0.5], [N.C5, 1], [N.D5, 1],
+    [N.C5, 1], [N.B4, 0.5], [N.A4, 0.5], [N.G3, 1], [N.A4, 1],
+    // Финальная фраза с задержкой
+    [N.E4, 1], [N.F4, 1], [N.G4, 2],
+    [N.A4, 1], [N.G4, 1], [N.F4, 1], [N.E4, 1],
+    [N.D4, 1], [N.C4, 1], [N.A3, 2],
+    [N._, 2] // пауза перед повтором
+  ];
 
   function scheduleNextNote() {
     if (!isMusicPlaying || !audioCtx) return;
-    const tempo = 200;
-    const chord = retroChords[noteIndex % retroChords.length];
-    const note = chord[Math.floor(Math.random() * chord.length)];
-    playRetroNote(note, audioCtx.currentTime, tempo / 1000 * 3.0);
+    
+    const [freq, beats] = KATYUSHA[noteIndex % KATYUSHA.length];
+    const duration = beats * KATYUSHA_TEMPO / 1000; // в секундах
+    
+    if (freq > 0) {
+      // Играем ноту чуть короче, чтобы было "staccato"-подобное звучание
+      playRetroNote(freq, audioCtx.currentTime, duration * 0.85);
+    }
+    
     noteIndex++;
-    musicTimer = setTimeout(scheduleNextNote, tempo);
+    musicTimer = setTimeout(scheduleNextNote, duration * 1000);
   }
+
 
   function toggleMusic() {
     ensureAudio();
