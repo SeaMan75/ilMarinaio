@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Brick Tetris Online v1.0.0.2</title>
+<title>Brick Tetris Online v1.0.0.3</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0;user-select:none;-webkit-tap-highlight-color:transparent}
   html,body{height:100%;background:linear-gradient(135deg,#1a0f28 0%,#2a1840 100%);font-family:Georgia,serif;color:#f5e0b8;overflow:hidden}
@@ -11,7 +11,8 @@
   
   #lobby{position:fixed;inset:0;background:rgba(0,0,0,0.95);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;z-index:100;padding:20px}
   #lobby h1{color:#ffd27a;font-size:28px;text-shadow:0 0 20px rgba(255,210,122,0.5);text-align:center}
-  #version{font-size:12px;opacity:0.6;margin-top:-10px;}
+  /* === НОВОЕ: Версия крупнее и заметнее === */
+  #version{font-size:18px;color:#ffd27a;margin-top:-8px;font-weight:bold;letter-spacing:2px;text-shadow:0 0 10px rgba(255,210,122,0.3);}
   .lobbyBtn{background:linear-gradient(180deg,#6b3a1e,#4a2512);color:#fff;border:2px solid #c88a4a;border-radius:10px;padding:14px 28px;font-size:17px;cursor:pointer;box-shadow:0 4px 0 #2a1208;font-weight:bold}
   .lobbyBtn:active{transform:translateY(3px);box-shadow:0 1px 0 #2a1208}
   .lobbyBtn:disabled{opacity:0.5;cursor:not-allowed}
@@ -85,7 +86,7 @@
 
 <div id="lobby">
   <h1>🧱 Brick Tetris</h1>
-  <div id="version">v1.0.0.2</div>
+  <div id="version">v1.0.0.3</div>
   
   <div class="modeSelector" style="flex-direction: column; align-items: flex-start; gap: 10px;">
     <div style="font-size: 14px; opacity: 0.8; margin-bottom: 4px;">Выберите режим:</div>
@@ -154,7 +155,7 @@
         <div id="nameInputSection">
           <label style="color:#ffd27a; font-size: 15px;">Введите ваше имя:</label>
           <input type="text" id="playerNameInput" maxlength="12" placeholder="Игрок" autocomplete="off">
-          <button class="lobbyBtn" onclick="saveAndShowLeaderboard()" style="width:100%; margin-top:5px;">💾 Сохранить и Таблица</button>
+          <button class="lobbyBtn" id="btnSaveScore" style="width:100%; margin-top:5px;">💾 Сохранить и Таблица</button>
         </div>
 
         <div id="leaderboardSection">
@@ -171,7 +172,7 @@
           </table>
         </div>
 
-        <button class="lobbyBtn" onclick="startNewGame()" style="margin-top:15px; width: 100%; max-width: 300px;">🔄 Новая игра</button>
+        <button class="lobbyBtn" id="btnNewGame" style="margin-top:15px; width: 100%; max-width: 300px;">🔄 Новая игра</button>
       </div>
 
     </div>
@@ -182,10 +183,10 @@
   </div>
   
   <div id="controls">
-    <button class="btn bomb" onclick="useActionLocal(1, 'bomb')">💣 Бомба (B)</button>
-    <button class="btn wind" onclick="useActionLocal(1, 'wind')">💨 Ветер (V)</button>
-    <button class="btn shield" id="btnShield" onclick="useActionLocal(1, 'shield')">🛡️ Щит (F)</button>
-    <button class="btn music" id="musicBtn" onclick="toggleMusic()">🎵 Музыка</button>
+    <button class="btn bomb" id="btnBomb">💣 Бомба (B)</button>
+    <button class="btn wind" id="btnWind">💨 Ветер (V)</button>
+    <button class="btn shield" id="btnShield">🛡️ Щит (F)</button>
+    <button class="btn music" id="musicBtn">🎵 Музыка</button>
   </div>
   
   <div id="hint">
@@ -200,8 +201,8 @@
 <script type="module">
   import { joinRoom } from 'https://esm.sh/trystero@0.20.0';
 
-  const VERSION = "1.0.0.2";
-  console.log(`Brick Tetris v${VERSION} загружен`);
+  const VERSION = "1.0.0.3";
+  console.log(`🎮 Brick Tetris v${VERSION} загружен`);
 
   const APP_ID = 'brick-tetris-v' + VERSION.replace(/\./g, '');
   let room = null, myRole = null, myPlayerNum = 0, PLAYER_COUNT = 1;
@@ -291,6 +292,7 @@
   }
 
   function startGameLogic() {
+    console.log(`Запуск игры в режиме: ${currentMode}`);
     if(currentMode === 'single_std') { COLS = 10; ROWS = 20; CELL = 24; PLAYER_COUNT = 1; }
     else if(currentMode === 'single_wide') { COLS = 30; ROWS = 30; CELL = 16; PLAYER_COUNT = 1; }
     else if(currentMode === 'bot') { COLS = 30; ROWS = 30; CELL = 16; PLAYER_COUNT = 2; }
@@ -307,6 +309,8 @@
     
     document.getElementById('lobby').style.display = 'none';
     document.getElementById('wrap').style.display = 'flex';
+    document.getElementById('gameOverOverlay').style.display = 'none';
+    document.getElementById('controls').style.display = 'flex';
     updateHUD();
     lastTime = 0;
     requestAnimationFrame(gameLoop);
@@ -316,8 +320,10 @@
     }
   }
 
+  // === КНОПКА "НАЧАТЬ ИГРУ" ===
   document.getElementById('btnCreate').addEventListener('click', () => {
-    console.log('Кнопка "Начать игру" нажата!');
+    console.log('🔘 Кнопка "Начать игру" нажата!');
+    console.log('Текущий режим:', currentMode);
     
     if(currentMode === 'online') {
       const onlinePlayers = document.querySelector('input[name="onlinePlayers"]:checked');
@@ -402,9 +408,13 @@
     } catch(e) { setStatus('Ошибка: ' + e.message, 'err'); }
   });
 
-  window.startNewGame = function() {
-    location.reload();
-  }
+  // === КНОПКИ УПРАВЛЕНИЯ (без onclick в HTML) ===
+  document.getElementById('btnBomb').addEventListener('click', () => useActionLocal(1, 'bomb'));
+  document.getElementById('btnWind').addEventListener('click', () => useActionLocal(1, 'wind'));
+  document.getElementById('btnShield').addEventListener('click', () => useActionLocal(1, 'shield'));
+  document.getElementById('musicBtn').addEventListener('click', toggleMusic);
+  document.getElementById('btnNewGame').addEventListener('click', () => location.reload());
+  document.getElementById('btnSaveScore').addEventListener('click', saveAndShowLeaderboard);
 
   function createGame() {
     const g = {
@@ -718,7 +728,6 @@
       btn.style.opacity = '0.7';
     }
   }
-  window.toggleMusic = toggleMusic;
 
   function useActionLocal(player, action) {
     if (!game || game['gameOver' + player]) return;
@@ -728,17 +737,16 @@
     } else if(action === 'wind') {
       if(PLAYER_COUNT === 1) useWindSingle(player);
       else if(myRole === 'p1' || currentMode !== 'online') handleCommand(player, action);
-      else sendCmd({player, action});
+      else if(sendCmd) sendCmd({player, action});
     } else if(action === 'bomb') {
       if(PLAYER_COUNT === 1) useBombSingle(player);
       else if(myRole === 'p1' || currentMode !== 'online') handleCommand(player, action);
-      else sendCmd({player, action});
+      else if(sendCmd) sendCmd({player, action});
     } else {
       if(myRole === 'p1' || currentMode !== 'online') handleCommand(player, action);
-      else sendCmd({player, action});
+      else if(sendCmd) sendCmd({player, action});
     }
   }
-  window.useActionLocal = useActionLocal;
 
   function handleCommand(player, action) {
     if(!game || game['gameOver'+player]) return;
@@ -891,7 +899,7 @@
   }
 
   function broadcastState() {
-    if(!game) return;
+    if(!game || !sendState) return;
     const state = { board: game.board };
     for(let p=1; p<=PLAYER_COUNT; p++) {
       state['cur'+p] = game['cur'+p]; state['next'+p] = game['next'+p];
@@ -927,7 +935,7 @@
     return 'tetris_lb_' + currentMode;
   }
 
-  window.saveAndShowLeaderboard = function() {
+  function saveAndShowLeaderboard() {
     const nameInput = document.getElementById('playerNameInput');
     const name = nameInput.value.trim().replace(/[<>]/g, '') || 'Аноним';
     const score = game ? game.score1 : 0;
@@ -957,8 +965,8 @@
 
     board.forEach((entry, index) => {
       const tr = document.createElement('tr');
-      if (index === 0 && entry.score === currentScore) {
-        tr.classList.add('me');
+      if (entry.score === currentScore && !tr.classList.contains('highlighted')) {
+        tr.classList.add('me', 'highlighted');
       }
       tr.innerHTML = `
         <td>${index + 1}</td>
@@ -986,7 +994,10 @@
         document.getElementById('nameInputSection').style.display = 'flex';
         document.getElementById('leaderboardSection').style.display = 'none';
         document.getElementById('playerNameInput').value = '';
-        setTimeout(() => document.getElementById('playerNameInput').focus(), 100);
+        setTimeout(() => {
+          const input = document.getElementById('playerNameInput');
+          if(input) input.focus();
+        }, 200);
       } else {
         let maxScore = 0, winnerNum = 0;
         for(let p=1; p<=PLAYER_COUNT; p++){
@@ -1001,30 +1012,17 @@
     }
   }
 
-  // === ИСПРАВЛЕННАЯ ОТРИСОВКА ГИРИ ===
-  function drawAnvil(piece, targetCtx, offsetX, offsetY, scale) {
+  function drawAnvil(piece, targetCtx, offsetX, offsetY) {
     if(!imgAnvil.complete || imgAnvil.naturalWidth === 0) {
-      // Fallback если картинка не загрузилась
       targetCtx.fillStyle = piece.color.base;
       targetCtx.fillRect(offsetX, offsetY, CELL * 2, CELL);
       return;
     }
-    
-    // PNG 96x96, гиря в верхней половине (0-48 пикселей)
-    // Берем source rectangle: верхняя половина PNG
-    const srcX = 0;
-    const srcY = 0;
-    const srcWidth = imgAnvil.naturalWidth;
-    const srcHeight = imgAnvil.naturalHeight / 2; // Только верхняя половина
-    
-    // Рисуем в область 2 клетки шириной, 1 клетка высотой
-    const destWidth = CELL * 2;
-    const destHeight = CELL;
-    
+    const srcHeight = imgAnvil.naturalHeight / 2;
     targetCtx.drawImage(
       imgAnvil,
-      srcX, srcY, srcWidth, srcHeight, // Source
-      offsetX, offsetY, destWidth, destHeight // Destination
+      0, 0, imgAnvil.naturalWidth, srcHeight,
+      offsetX, offsetY, CELL * 2, CELL
     );
   }
 
@@ -1074,7 +1072,7 @@
             for(let x=0;x<piece.shape[y].length;x++){
               if(piece.shape[y][x]){
                 ctx.fillStyle = piece.color.hi;
-                ctx.fillRect((piece.x+x)*CELL, (piece.y+y+ (ghostY - piece.y))*CELL, CELL, CELL);
+                ctx.fillRect((piece.x+x)*CELL, (ghostY+y)*CELL, CELL, CELL);
               }
             }
           }
@@ -1093,9 +1091,8 @@
           }
         }
         
-        // Отрисовка текущей фигуры
         if(piece.type === 'anvil') {
-          drawAnvil(piece, ctx, piece.x * CELL, piece.y * CELL, CELL);
+          drawAnvil(piece, ctx, piece.x * CELL, piece.y * CELL);
         } else {
           for(let y=0;y<piece.shape.length;y++){
             for(let x=0;x<piece.shape[y].length;x++){
@@ -1130,9 +1127,8 @@
         ctx.shadowColor = '#ff4400'; ctx.shadowBlur = 20;
         ctx.fillRect(destroyAnim.x * CELL, destroyAnim.y * CELL, destroyAnim.w * CELL, destroyAnim.h * CELL);
       } else if(destroyAnim.type === 'shatter') {
-        if(imgAnvilBroken.complete) {
+        if(imgAnvilBroken.complete && imgAnvilBroken.naturalWidth > 0) {
           ctx.globalAlpha = alpha;
-          // Для расколотой гири тоже берем только верхнюю половину
           const srcHeight = imgAnvilBroken.naturalHeight / 2;
           ctx.drawImage(imgAnvilBroken, 0, 0, imgAnvilBroken.naturalWidth, srcHeight,
             destroyAnim.x * CELL, destroyAnim.y * CELL, CELL*2, CELL);
@@ -1159,10 +1155,164 @@
     drawNextPiece();
   }
 
-  // === ИСПРАВЛЕННАЯ ОТРИСОВКА СЛЕДУЮЩЕЙ ФИГУРЫ ===
   function drawNextPiece() {
     nextCtx.fillStyle = 'rgba(0,0,0,0.4)'; nextCtx.fillRect(0,0,100,100);
+    
+    // === ИСПРАВЛЕНИЕ: Не показываем следующую фигуру при game over ===
+    if(!game) return;
+    let myGameOver = false;
+    if(PLAYER_COUNT === 1) {
+      myGameOver = game.gameOver1;
+    } else {
+      myGameOver = game['gameOver' + myPlayerNum];
+    }
+    if(myGameOver) return;
+    
     const piece = game['next'+myPlayerNum];
     if(!piece) return;
     
-    // Не показываем ги
+    const scale = 20;
+    const offsetX = (100 - piece.shape[0].length * scale) / 2;
+    const offsetY = (100 - piece.shape.length * scale) / 2;
+    
+    for(let y=0; y<piece.shape.length; y++){
+      for(let x=0; x<piece.shape[y].length; x++){
+        if(piece.shape[y][x]) {
+          if(piece.type === 'anvil' && imgAnvil.complete && imgAnvil.naturalWidth > 0) {
+            const srcHeight = imgAnvil.naturalHeight / 2;
+            nextCtx.drawImage(imgAnvil, 0, 0, imgAnvil.naturalWidth, srcHeight,
+              offsetX + x*scale, offsetY + y*scale, scale*2, scale);
+          } else {
+            nextCtx.fillStyle = piece.color.base;
+            nextCtx.fillRect(offsetX + x*scale, offsetY + y*scale, scale, scale);
+            nextCtx.strokeStyle = piece.color.hi; 
+            nextCtx.strokeRect(offsetX + x*scale, offsetY + y*scale, scale, scale);
+          }
+        }
+      }
+    }
+  }
+
+  function drawBrick(x,y,color){
+    const s = CELL, px = x*s, py = y*s;
+    ctx.fillStyle = color.base; ctx.fillRect(px,py,s,s);
+    const g = ctx.createLinearGradient(px,py,px+s,py+s);
+    g.addColorStop(0, color.hi); g.addColorStop(0.4, 'rgba(0,0,0,0)'); g.addColorStop(1, color.lo);
+    ctx.fillStyle = g; ctx.fillRect(px,py,s,s);
+    ctx.strokeStyle = color.hi; ctx.globalAlpha = 0.8; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(px+1,py+s-1); ctx.lineTo(px+1,py+1); ctx.lineTo(px+s-1,py+1); ctx.stroke();
+    ctx.strokeStyle = color.lo; ctx.globalAlpha = 0.9;
+    ctx.beginPath(); ctx.moveTo(px+s-1,py+1); ctx.lineTo(px+s-1,py+s-1); ctx.lineTo(px+1,py+s-1); ctx.stroke();
+    ctx.globalAlpha = 1; ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 1;
+    ctx.strokeRect(px+0.5,py+0.5,s-1,s-1);
+  }
+
+  function gameLoop(ts) {
+    if(!lastTime) lastTime = ts;
+    const dt = ts - lastTime; lastTime = ts;
+    
+    if(currentMode === 'online' && myRole !== 'p1' && !game) { requestAnimationFrame(gameLoop); return; }
+    
+    if(game) {
+      if(PLAYER_COUNT > 1) {
+        let allOver = true;
+        for(let p=1; p<=PLAYER_COUNT; p++) if(!game['gameOver'+p]) allOver = false;
+        if(allOver) { draw(); checkGameOver(); requestAnimationFrame(gameLoop); return; }
+      } else if(game.gameOver1) { draw(); checkGameOver(); requestAnimationFrame(gameLoop); return; }
+
+      for(let p=1; p<=PLAYER_COUNT; p++){
+        if(game['gameOver'+p]) continue;
+        
+        if(currentMode === 'bot' && p === 2) {
+          if(game['cur'+p].y === 0 && !game.botThinking2) {
+            game.botThinking2 = true;
+            setTimeout(() => {
+              if(game && !game.gameOver2 && game.cur2 && game.cur2.y === 0) {
+                makeBotMove(2);
+              }
+              game.botThinking2 = false;
+            }, 400);
+          }
+          continue;
+        }
+        
+        const piece = game['cur'+p];
+        if(!piece) continue;
+        
+        const isOnGround = collide(piece, 0, 1, null, true);
+        if(isOnGround) {
+          if(game['lockStart'+p] === 0) game['lockStart'+p] = lastTime;
+          if(lastTime - game['lockStart'+p] >= 1000) {
+            if(piece.type === 'anvil') smashAnvil(p, false);
+            else merge(piece, p);
+            game['lockStart'+p] = 0;
+            if(collide(game['cur'+p], 0, 0, null, true)) game['gameOver'+p] = true;
+          }
+        } else {
+          game['lockStart'+p] = 0;
+        }
+      }
+
+      game.dropTimer += dt;
+      if(game.dropTimer > game.dropInterval){
+        game.dropTimer = 0;
+        for(let p=1; p<=PLAYER_COUNT; p++){
+          if(game['gameOver'+p] || (currentMode === 'bot' && p === 2)) continue;
+          const piece = game['cur'+p];
+          if(piece && !collide(piece, 0, 1, null, true)) piece.y++;
+        }
+      }
+      
+      if(PLAYER_COUNT > 1) {
+        for(let p=1; p<=PLAYER_COUNT; p++){
+          if(game['shield'+p] > 0) {
+            game['shield'+p] -= dt;
+            if(game['shield'+p] < 0) game['shield'+p] = 0;
+          }
+        }
+      }
+      updateHUD();
+      checkGameOver();
+    }
+    draw();
+    requestAnimationFrame(gameLoop);
+  }
+
+  // === УПРАВЛЕНИЕ С КОРРЕКТНОЙ ОБРАБОТКОЙ INPUT ===
+  window.addEventListener('keydown', e => {
+    // === ИСПРАВЛЕНИЕ: Не перехватываем ввод в полях формы ===
+    const activeEl = document.activeElement;
+    if(activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) {
+      return; // Позволяем нормально печатать в input
+    }
+    
+    if(!game || game['gameOver'+myPlayerNum]) return;
+    
+    if(e.key === 'ScrollLock' || e.key === 'Scroll_Lock') {
+      if(currentMode === 'bot') {
+        e.preventDefault();
+        const secW = Math.floor(COLS / 2);
+        for(let y=0; y<ROWS; y++) for(let x=secW; x<COLS; x++) game.board[y][x] = null;
+        game.score2 += 500;
+        return;
+      }
+    }
+    
+    if(e.key === 'ArrowLeft') useActionLocal(myPlayerNum, 'left');
+    else if(e.key === 'ArrowRight') useActionLocal(myPlayerNum, 'right');
+    else if(e.key === 'ArrowDown') useActionLocal(myPlayerNum, 'down');
+    else if(e.key === 'ArrowUp') useActionLocal(myPlayerNum, 'rotate');
+    else if(e.key === ' ') useActionLocal(myPlayerNum, 'drop');
+    else if(['b','B','и','И'].includes(e.key)) useActionLocal(myPlayerNum, 'bomb');
+    else if(['v','V','м','М'].includes(e.key)) useActionLocal(myPlayerNum, 'wind');
+    else if(['f','F','а','А'].includes(e.key)) useActionLocal(myPlayerNum, 'shield');
+    
+    if(['ArrowLeft','ArrowRight','ArrowDown','ArrowUp',' '].includes(e.key)) e.preventDefault();
+  });
+
+  console.log(`✅ Brick Tetris v${VERSION} инициализирован успешно`);
+  console.log(`📋 Режим по умолчанию: ${currentMode}`);
+
+</script>
+</body>
+</html>
