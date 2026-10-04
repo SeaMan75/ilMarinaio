@@ -311,6 +311,8 @@
     document.getElementById('wrap').style.display = 'flex';
     document.getElementById('gameOverOverlay').style.display = 'none';
     document.getElementById('controls').style.display = 'flex';
+    document.getElementById('nextBox').style.display = 'flex';
+   
     updateHUD();
     lastTime = 0;
     requestAnimationFrame(gameLoop);
@@ -977,13 +979,15 @@
     });
   }
 
-  function checkGameOver() {
+    function checkGameOver() {
     if(!game) return;
     let allOver = true;
     for(let p=1; p<=PLAYER_COUNT; p++) if(!game['gameOver'+p]) allOver = false;
     
     if(allOver || (PLAYER_COUNT === 1 && game.gameOver1)) {
       document.getElementById('controls').style.display = 'none';
+      // === НОВОЕ: Скрываем контейнер "Следующая фигура" ===
+      document.getElementById('nextBox').style.display = 'none';
       
       const overlay = document.getElementById('gameOverOverlay');
       overlay.style.display = 'flex';
@@ -1279,11 +1283,11 @@
   }
 
   // === УПРАВЛЕНИЕ С КОРРЕКТНОЙ ОБРАБОТКОЙ INPUT ===
+    // === УПРАВЛЕНИЕ С АБСОЛЮТНОЙ ЗАЩИТОЙ INPUT ===
   window.addEventListener('keydown', e => {
-    // === ИСПРАВЛЕНИЕ: Не перехватываем ввод в полях формы ===
-    const activeEl = document.activeElement;
-    if(activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) {
-      return; // Позволяем нормально печатать в input
+    // Проверяем, был ли клик в input
+    if(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+      return; // Полностью игнорируем все клавиши в полях ввода
     }
     
     if(!game || game['gameOver'+myPlayerNum]) return;
