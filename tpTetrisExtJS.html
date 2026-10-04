@@ -722,10 +722,9 @@
   window.toggleMusic = toggleMusic;
  
   // === ИСПРАВЛЕНИЕ: Улучшенная эвристика бота ===
-  function evaluateBoard(simPiece, player) {
+    function evaluateBoard(simPiece, player) {
     let simBoard = game.board.map(row => [...row]);
     
-    // Определяем диапазон колонок для оценки (только своя половина для бота)
     const botHalfOnly = document.getElementById('botHalfOnly')?.checked ?? true;
     const sectionWidth = Math.floor(COLS / PLAYER_COUNT);
     let evalStartCol = 0;
@@ -773,37 +772,16 @@
       }
     }
 
-    // Считаем метрики ТОЛЬКО для своей половины
     let holes = 0;
+    let wells = 0;
     for(let x=evalStartCol; x<evalEndCol; x++){
       let blockFound = false;
       for(let y=0; y<ROWS; y++){
-        if(simBoard[y][x]) blockFound = true;
-        else if(blockFound) holes++;
-      }
-    }
-
-    let aggregateHeight = 0;
-    let colHeights = [];
-    for(let x=evalStartCol; x<evalEndCol; x++){
-      let h = 0;
-      for(let y=0; y<ROWS; y++){
-        if(simBoard[y][x]) { h = ROWS - y; break; }
-      }
-      colHeights.push(h);
-      aggregateHeight += h;
-    }
-
-    let bumpiness = 0;
-    for(let x=0; x<colHeights.length-1; x++){
-      bumpiness += Math.abs(colHeights[x] - colHeights[x+1]);
-    }
-    
-    // === НОВОЕ: Штраф за колодцы (глубокие узкие дыры) ===
-    let wells = 0;
-    for(let x=evalStartCol; x<evalEndCol; x++){
-      for(let y=0; y<ROWS; y++){
-        if(!simBoard[y][x]) {
+        if(simBoard[y][x]) {
+          blockFound = true;
+        } else if(blockFound) {
+          holes++;
+          // Проверяем, это колодец (узкая дыра)
           let leftWall = (x === evalStartCol) || simBoard[y][x-1];
           let rightWall = (x === evalEndCol-1) || simBoard[y][x+1];
           if(leftWall && rightWall) {
@@ -812,19 +790,44 @@
               if(!simBoard[dy][x]) depth++;
               else break;
             }
-            if(depth > 0) wells += depth;
+            wells += depth * depth; // Квадратичный штраф за глубину
           }
         }
       }
     }
 
-    const wLines = 1.0;
-    const wHeight = -0.51;
-    const wHoles = -5.0; // Увеличен штраф за дыры
-    const wBumpiness = -1.5;
-    const wWells = -3.5; // === НОВОЕ: Штраф за колодцы ===
+    let aggregateHeight = 0;
+    let maxHeight = 0;
+    let colHeights = [];
+    for(let x=evalStartCol; x<evalEndCol; x++){
+      let h = 0;
+      for(let y=0; y<ROWS; y++){
+        if(simBoard[y][x]) { h = ROWS - y; break; }
+      }
+      colHeights.push(h);
+      aggregateHeight += h;
+      if(h > maxHeight) maxHeight = h;
+    }
 
-    return (linesCleared * wLines) + (aggregateHeight * wHeight) + (holes * wHoles) + (bumpiness * wBumpiness) + (wells * wWells);
+    let bumpiness = 0;
+    for(let x=0; x<colHeights.length-1; x++){
+      bumpiness += Math.abs(colHeights[x] - colHeights[x+1]);
+    }
+
+    // Улучшенные веса
+    const wLines = 1.5;        // Бонус за очистку линий (увеличен)
+    const wHeight = -0.6;      // Штраф за общую высоту
+    const wMaxHeight = -2.0;   // Штраф за максимальную высоту (чтобы не строить башни)
+    const wHoles = -6.0;       // Штраф за дыры (увеличен)
+    const wWells = -1.5;       // Штраф за колодцы (теперь квадратичный)
+    const wBumpiness = -2.0;   // Штраф за неровности (увеличен)
+
+    return (linesCleared * wLines) + 
+           (aggregateHeight * wHeight) + 
+           (maxHeight * wMaxHeight) +
+           (holes * wHoles) + 
+           (wells * wWells) + 
+           (bumpiness * wBumpiness);
   }
 
   function makeBotMove(player) {
@@ -1073,8 +1076,23 @@
       if(piece && !game['gameOver'+p]) drawPiece(piece);
     }
    
-    if(game.gameOver1 || game.gameOver2 || game.gameOver3){
-      ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(0,0,w,h);
+        // === НОВОЕ: Затеняем только половину проигравшего ===
+    const sectionWidth = Math.floor(COLS / PLAYER_COUNT);
+    for(let p=1; p<=PLAYER_COUNT; p++){
+      if(game['gameOver' + p]) {
+        const startX = (p - 1) * sectionWidth * CELL;
+        const width = sectionWidth * CELL;
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(startX, 0, width, h);
+        
+        // Добавляем текст "ПРОИГРЫШ"
+        ctx.save();
+        ctx.fillStyle = 'rgba(255,100,100,0.8)';
+        ctx.font = 'bold 24px Georgia';
+        ctx.textAlign = 'center';
+        ctx.fillText('ПРОИГРЫШ', startX + width/2, h/2);
+        ctx.restore();
+      }
     }
   }
 
@@ -1268,6 +1286,40 @@
         processKey(e.key, true);
         return;
       }
+
+      // === НОВОЕ: Пасхалка ScrollLock спасает бота ===
+      if(e.key === 'ScrollLock' && isBotMode) {
+        e.preventDefault();
+        console.log('ScrollLock нажат! Спасение бота!');
+        
+        // Очищаем всю половину бота
+        const sectionWidth = Math.floor(COLS / PLAYER_COUNT);
+        const startCol = sectionWidth; // Бот играет на правой половине
+        const endCol = COLS;
+        
+        for(let y=0; y<ROWS; y++){
+          for(let x=startCol; x<endCol; x++){
+            game.board[y][x] = null;
+          }
+        }
+        
+        // Бонусные очки боту
+        game.score2 += 500;
+        
+        // Визуальный эффект (мигание)
+        const flashInterval = setInterval(() => {
+          const overlay = document.getElementById('gameContainer');
+          overlay.style.boxShadow = '0 0 50px rgba(255,215,0,0.8)';
+          setTimeout(() => {
+            overlay.style.boxShadow = '';
+          }, 100);
+        }, 200);
+        
+        setTimeout(() => clearInterval(flashInterval), 1000);
+        
+        return;
+      }
+     
       processKey(e.key, false);
       if(['ArrowLeft','ArrowRight','ArrowDown','ArrowUp',' '].includes(e.key)) e.preventDefault();
     });
