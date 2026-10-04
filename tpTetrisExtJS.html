@@ -112,7 +112,7 @@
   </div>
   
   <div id="menu" style="text-align:center">
-    <button class="lobbyBtn" id="btnCreate">🎮 Начать игру</button>
+    <button class="lobbyBtn" onclick="startGame()">🎮 Начать игру</button>
     <div id="onlineJoinBlock" style="display:none; margin-top:14px;">
       <div style="opacity:0.7; margin-bottom:8px;">— или присоединиться к другу —</div>
       <input type="text" id="joinInput" placeholder="КОД КОМНАТЫ" maxlength="8">
@@ -339,7 +339,8 @@
     }
   }
 
-  document.getElementById('btnCreate').addEventListener('click', () => {
+    // === ГЛОБАЛЬНАЯ ФУНКЦИЯ ДЛЯ КНОПКИ ===
+  window.startGame = function() {
     console.log('🔘 Кнопка "Начать игру" нажата!');
     console.log('Текущий режим:', currentMode);
     
@@ -386,7 +387,7 @@
       myPlayerNum = 1;
       startGameLogic();
     }
-  });
+  };
 
   document.getElementById('btnJoin').addEventListener('click', () => {
     const code = document.getElementById('joinInput').value.trim().toUpperCase();
