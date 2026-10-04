@@ -998,10 +998,14 @@
         document.getElementById('nameInputSection').style.display = 'flex';
         document.getElementById('leaderboardSection').style.display = 'none';
         document.getElementById('playerNameInput').value = '';
+        // Даём input время появиться в DOM, потом фокусируем
         setTimeout(() => {
           const input = document.getElementById('playerNameInput');
-          if(input) input.focus();
-        }, 200);
+          if(input) {
+            input.focus();
+            input.click(); // Дополнительный клик для надёжности
+          }
+        }, 300);
       } else {
         let maxScore = 0, winnerNum = 0;
         for(let p=1; p<=PLAYER_COUNT; p++){
@@ -1282,26 +1286,26 @@
     requestAnimationFrame(gameLoop);
   }
 
-  // === УПРАВЛЕНИЕ С КОРРЕКТНОЙ ОБРАБОТКОЙ INPUT ===
-    // === УПРАВЛЕНИЕ С АБСОЛЮТНОЙ ЗАЩИТОЙ INPUT ===
+    // === ПРОСТОЕ УПРАВЛЕНИЕ БЕЗ БЛОКИРОВОК INPUT ===
   window.addEventListener('keydown', e => {
-    // Проверяем, был ли клик в input
-    if(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
-      return; // Полностью игнорируем все клавиши в полях ввода
+    // Если фокус в input — ничего не делаем, пусть input работает штатно
+    if(e.target.tagName === 'INPUT') return;
+    
+    if(!game) return;
+    
+    // ScrollLock пасхалка
+    if((e.key === 'ScrollLock' || e.key === 'Scroll_Lock') && currentMode === 'bot') {
+      e.preventDefault();
+      const secW = Math.floor(COLS / 2);
+      for(let y=0; y<ROWS; y++) for(let x=secW; x<COLS; x++) game.board[y][x] = null;
+      game.score2 += 500;
+      return;
     }
     
-    if(!game || game['gameOver'+myPlayerNum]) return;
+    // Если игра окончена — не обрабатываем игровые клавиши
+    if(game['gameOver'+myPlayerNum]) return;
     
-    if(e.key === 'ScrollLock' || e.key === 'Scroll_Lock') {
-      if(currentMode === 'bot') {
-        e.preventDefault();
-        const secW = Math.floor(COLS / 2);
-        for(let y=0; y<ROWS; y++) for(let x=secW; x<COLS; x++) game.board[y][x] = null;
-        game.score2 += 500;
-        return;
-      }
-    }
-    
+    // Игровые команды
     if(e.key === 'ArrowLeft') useActionLocal(myPlayerNum, 'left');
     else if(e.key === 'ArrowRight') useActionLocal(myPlayerNum, 'right');
     else if(e.key === 'ArrowDown') useActionLocal(myPlayerNum, 'down');
@@ -1311,6 +1315,7 @@
     else if(['v','V','м','М'].includes(e.key)) useActionLocal(myPlayerNum, 'wind');
     else if(['f','F','а','А'].includes(e.key)) useActionLocal(myPlayerNum, 'shield');
     
+    // Предотвращаем прокрутку стрелками
     if(['ArrowLeft','ArrowRight','ArrowDown','ArrowUp',' '].includes(e.key)) e.preventDefault();
   });
 
