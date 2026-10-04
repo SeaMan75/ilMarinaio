@@ -44,11 +44,25 @@
   #nextBox span{font-size:13px;color:#ffd27a}
   #nextPieceCanvas{background:rgba(0,0,0,0.4);border-radius:4px;border:1px solid #6b4a2a}
 
-  #gameOverOverlay{position:absolute;inset:0;background:rgba(0,0,0,0.85);display:none;align-items:center;justify-content:center;flex-direction:column;gap:12px;border-radius:4px;z-index:5}
+  /* === НОВОЕ: Стили для экрана Game Over и Таблицы лидеров === */
+  #gameOverOverlay{position:absolute;inset:0;background:rgba(0,0,0,0.9);display:none;align-items:center;justify-content:center;flex-direction:column;gap:12px;border-radius:4px;z-index:5; padding: 20px; overflow-y: auto;}
   #gameOverOverlay h2{color:#ff6a3d;font-size:28px;text-shadow:2px 2px 0 #000}
-  #gameOverOverlay .winner{color:#ffd27a;font-size:20px}
+  #gameOverOverlay .winner{color:#ffd27a;font-size:20px; font-weight: bold;}
   
-  #controls{display:flex;gap:10px;margin-top:4px;flex-wrap:wrap;justify-content:center}
+  #nameInputSection{display:none; flex-direction:column; align-items:center; gap:10px; margin: 15px 0; width: 100%; max-width: 300px;}
+  #playerNameInput{width: 100%; padding:10px; border-radius:6px; border:2px solid #c88a4a; background:#1a0f28; color:#f5e0b8; text-align:center; font-size:16px; font-family: Georgia, serif;}
+  #playerNameInput:focus { outline: none; border-color: #ffd27a; }
+
+  #leaderboardSection{display:none; width: 100%; max-width: 350px; margin: 10px 0;}
+  #leaderboardSection h3{color:#ffd27a; text-align:center; margin-bottom:10px; font-size: 18px;}
+  .lb-table{width:100%; color:#f5e0b8; font-size:14px; border-collapse: collapse;}
+  .lb-table th{padding:8px 5px; text-align:left; border-bottom: 2px solid #6b4a2a; color: #ffd27a;}
+  .lb-table th:last-child{ text-align: right; }
+  .lb-table td{padding:6px 5px; border-bottom: 1px solid rgba(107, 74, 42, 0.3);}
+  .lb-table td:last-child{ text-align: right; font-weight: bold; color: #ffd27a; }
+  .lb-table tr.me { color: #fff; background: rgba(255, 210, 122, 0.1); }
+
+  #controls{display:flex;gap:10px;margin-top:4px;flex-wrap:wrap;justify-content:center; transition: opacity 0.3s;}
   .btn{background:linear-gradient(180deg,#6b3a1e,#4a2512);color:#fff;border:2px solid #c88a4a;border-radius:8px;padding:8px 14px;font-size:14px;font-weight:bold;cursor:pointer;box-shadow:0 3px 0 #2a1208}
   .btn:active{transform:translateY(2px);box-shadow:0 1px 0 #2a1208}
   .btn.bomb{background:linear-gradient(180deg,#b52a1e,#7a1a10);border-color:#ff6a4a}
@@ -131,11 +145,35 @@
   <div id="gameArea">
     <div id="gameContainer">
       <canvas id="game"></canvas>
+      
+      <!-- === НОВОЕ: Расширенный экран Game Over === -->
       <div id="gameOverOverlay">
-        <h2 id="goTitle">Конец игры</h2>
+        <h2 id="goTitle">Игра окончена</h2>
         <div class="winner" id="goWinner"></div>
-        <button class="lobbyBtn" id="btnRestart">Заново</button>
+        
+        <div id="nameInputSection">
+          <label style="color:#ffd27a; font-size: 15px;">Введите ваше имя:</label>
+          <input type="text" id="playerNameInput" maxlength="12" placeholder="Игрок" autocomplete="off">
+          <button class="lobbyBtn" onclick="saveAndShowLeaderboard()" style="width:100%; margin-top:5px;">💾 Сохранить и Таблица</button>
+        </div>
+
+        <div id="leaderboardSection">
+          <h3>🏆 Топ-16</h3>
+          <table class="lb-table">
+            <thead>
+              <tr>
+                <th style="width: 40px;">#</th>
+                <th>Имя</th>
+                <th>Счёт</th>
+              </tr>
+            </thead>
+            <tbody id="leaderboardBody"></tbody>
+          </table>
+        </div>
+
+        <button class="lobbyBtn" onclick="startNewGame()" style="margin-top:15px; width: 100%; max-width: 300px;">🔄 Новая игра</button>
       </div>
+
     </div>
     <div id="nextBox">
       <span>Следующая:</span>
@@ -162,7 +200,7 @@
 <script type="module">
   import { joinRoom } from 'https://esm.sh/trystero@0.20.0';
 
-  const APP_ID = 'brick-tetris-v6-final';
+  const APP_ID = 'brick-tetris-v7-final';
   let room = null, myRole = null, myPlayerNum = 0, PLAYER_COUNT = 1;
   let game = null, lastTime = 0, connectedPeers = [];
   let currentMode = 'single_std';
@@ -225,15 +263,11 @@
     document.getElementById('botOptions').style.display = isBot ? 'block' : 'none';
     document.getElementById('btnCreate').textContent = isOnline ? '🎮 Создать комнату' : '🎮 Начать игру';
     
-    // Показываем статистику всех игроков в мультиплеере/боте
     document.getElementById('p2Stats').style.display = isSingle ? 'none' : 'flex';
     document.getElementById('p3Stats').style.display = 'none'; 
     
-    // Бомба и Ветер доступны ВСЕМ (даже в одиночной игре)
     document.querySelector('.btn.wind').style.display = 'inline-block';
     document.querySelector('.btn.bomb').style.display = 'inline-block';
-    
-    // Щит только для мультиплеера
     document.getElementById('btnShield').style.display = isSingle ? 'none' : 'inline-block';
     
     if(isSingle) {
@@ -356,7 +390,10 @@
     } catch(e) { setStatus('Ошибка: ' + e.message, 'err'); }
   });
 
-  document.getElementById('btnRestart').addEventListener('click', () => location.reload());
+  // === НОВОЕ: Функция перезапуска игры ===
+  window.startNewGame = function() {
+    location.reload();
+  }
 
   function createGame() {
     const g = {
@@ -379,7 +416,6 @@
   }
 
   function spawnPiece(player) {
-    // Гиря появляется с шансом 8% во всех режимах
     const isAnvil = Math.random() < 0.08; 
     if(isAnvil) {
       const sectionWidth = Math.floor(COLS / PLAYER_COUNT);
@@ -476,7 +512,6 @@
     
     if(!collide(piece, dx, dy, null, true)){ 
       piece.x += dx; piece.y += dy; 
-      // СБРОС ТАЙМЕРА ПРИ ДВИЖЕНИИ
       game['lockStart'+player] = 0;
       return true; 
     }
@@ -492,7 +527,6 @@
       if(!collide(rotated, dx, dy, rotated.shape, true)){
         piece.x += dx; piece.y += dy;
         piece.shape = rotated.shape; piece.rot = rotated.rot;
-        // СБРОС ТАЙМЕРА ПРИ ПОВОРОТЕ
         game['lockStart'+player] = 0;
         return true;
       }
@@ -516,7 +550,7 @@
     while(!collide(piece, 0, 1, null, true)){ piece.y++; dropped++; }
     game['score'+player] += dropped * 2;
     merge(piece, player);
-    game['lockStart'+player] = 0; // Сброс после хард дропа
+    game['lockStart'+player] = 0;
     if(collide(game['cur'+player], 0, 0, null, true)) game['gameOver'+player] = true;
   }
 
@@ -595,13 +629,10 @@
     }
   }
 
-  // === ЛОГИКА ДЛЯ ОДИНОЧНОЙ ИГРЫ ===
   function useWindSingle(player) {
     if(game['wind'+player] <= 0) return;
     const piece = game['cur'+player];
     if(!piece || piece.type === 'anvil') return;
-    
-    // Поднимаем на 3 клетки, если возможно
     for(let i=0; i<3; i++){
       if(piece.y > 0 && !collide(piece, 0, -1, null, false)) {
         piece.y--;
@@ -616,7 +647,6 @@
   function useBombSingle(player) {
     if(game['bombs'+player] <= 0) return;
     game['bombs'+player]--;
-    
     const targetRows = 5 + Math.floor(Math.random() * 6);
     let bottom = ROWS - 1;
     while(bottom >= 0 && game.board[bottom].every(c => !c)) bottom--;
@@ -624,7 +654,6 @@
     
     const top = Math.max(0, bottom - targetRows + 1);
     const cols = Array.from({length: COLS}, () => []);
-    
     for(let y = 0; y < top; y++){
       for(let x = 0; x < COLS; x++){
         if(game.board[y][x]) cols[x].push(game.board[y][x]);
@@ -663,8 +692,9 @@
   }
   window.toggleMusic = toggleMusic;
 
+  // === НОВОЕ: Блокировка действий после Game Over ===
   function useActionLocal(player, action) {
-    if(myPlayerNum !== player) return;
+    if (!game || game['gameOver' + player]) return; // МГНОВЕННЫЙ БЛОК
     
     if(action === 'shield') {
       activateShield(player);
@@ -692,14 +722,13 @@
       if(piece && !collide(piece, 0, 1, null, true)) { 
         piece.y++; 
         game['score'+player]++; 
-        game['lockStart'+player] = 0; // Сброс при soft drop
+        game['lockStart'+player] = 0;
       }
     }
     else if(action === 'rotate') tryRotate(player);
     else if(action === 'drop') hardDrop(player);
   }
 
-  // === ВОССТАНОВЛЕННЫЙ ИИ БОТА ===
   function evaluateBoard(simPiece, player) {
     let simBoard = game.board.map(row => [...row]);
     const botHalfOnly = document.getElementById('botHalfOnly')?.checked ?? true;
@@ -860,6 +889,54 @@
     }
   }
 
+  // === НОВОЕ: Логика Таблицы Лидеров ===
+  function getLeaderboardKey() {
+    return 'tetris_lb_' + currentMode;
+  }
+
+  window.saveAndShowLeaderboard = function() {
+    const nameInput = document.getElementById('playerNameInput');
+    const name = nameInput.value.trim().replace(/[<>]/g, '') || 'Аноним'; // Защита от XSS
+    const score = game ? game.score1 : 0;
+    
+    const key = getLeaderboardKey();
+    let board = JSON.parse(localStorage.getItem(key) || '[]');
+    board.push({ name: name, score: score, date: new Date().toLocaleDateString() });
+    board.sort((a, b) => b.score - a.score);
+    board = board.slice(0, 16); // Храним только Топ-16
+    localStorage.setItem(key, JSON.stringify(board));
+    
+    document.getElementById('nameInputSection').style.display = 'none';
+    document.getElementById('leaderboardSection').style.display = 'block';
+    renderLeaderboard(score);
+  }
+
+  function renderLeaderboard(currentScore) {
+    const key = getLeaderboardKey();
+    const board = JSON.parse(localStorage.getItem(key) || '[]');
+    const tbody = document.getElementById('leaderboardBody');
+    tbody.innerHTML = '';
+    
+    if (board.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:15px; opacity:0.6;">Пока нет записей</td></tr>';
+      return;
+    }
+
+    board.forEach((entry, index) => {
+      const tr = document.createElement('tr');
+      // Подсветка текущей записи (грубая проверка по счету)
+      if (index === 0 && entry.score === currentScore) {
+        tr.classList.add('me');
+      }
+      tr.innerHTML = `
+        <td>${index + 1}</td>
+        <td>${entry.name}</td>
+        <td>${entry.score}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
   function draw() {
     if(!game) return;
     const w = canvas.width, h = canvas.height;
@@ -893,7 +970,6 @@
       }
     }
 
-    // === ПОДСВЕТКА РЯДОВ И ПРИЗРАК ===
     const rowsToHighlight = [];
     for(let p=1; p<=PLAYER_COUNT; p++){
       const piece = game['cur'+p];
@@ -913,7 +989,6 @@
           }
           ctx.globalAlpha = 1;
 
-          // Проверка заполнения рядов по призраку
           for(let py=0; py<piece.shape.length; py++){
             const boardY = ghostY + py;
             if(boardY < 0 || boardY >= ROWS) continue;
@@ -1041,7 +1116,6 @@
       for(let p=1; p<=PLAYER_COUNT; p++){
         if(game['gameOver'+p]) continue;
         
-        // === ИИ БОТА ===
         if(currentMode === 'bot' && p === 2) {
           if(game['cur'+p].y === 0 && !game.botThinking2) {
             game.botThinking2 = true;
@@ -1096,8 +1170,44 @@
     requestAnimationFrame(gameLoop);
   }
 
-  window.addEventListener('keydown', e => {
+  // === НОВОЕ: Проверка окончания игры и обновление UI ===
+  function checkGameOver() {
     if(!game) return;
+    let allOver = true;
+    for(let p=1; p<=PLAYER_COUNT; p++) if(!game['gameOver'+p]) allOver = false;
+    
+    if(allOver || (PLAYER_COUNT === 1 && game.gameOver1)) {
+      // Скрываем панель управления, чтобы нельзя было нажать кнопки
+      document.getElementById('controls').style.display = 'none';
+      
+      const overlay = document.getElementById('gameOverOverlay');
+      overlay.style.display = 'flex';
+      
+      if(PLAYER_COUNT === 1) {
+        document.getElementById('goTitle').textContent = 'Игра окончена';
+        document.getElementById('goWinner').textContent = `Ваш финальный счёт: ${game.score1}`;
+        document.getElementById('nameInputSection').style.display = 'flex';
+        document.getElementById('leaderboardSection').style.display = 'none';
+        document.getElementById('playerNameInput').value = '';
+        setTimeout(() => document.getElementById('playerNameInput').focus(), 100);
+      } else {
+        let maxScore = 0, winnerNum = 0;
+        for(let p=1; p<=PLAYER_COUNT; p++){
+          if(game['score'+p] > maxScore){ maxScore = game['score'+p]; winnerNum = p; }
+        }
+        const colors = ['', '🔴', '🔵', '🟢'];
+        document.getElementById('goTitle').textContent = 'Игра окончена';
+        document.getElementById('goWinner').textContent = `${colors[winnerNum]} Игрок ${winnerNum} победил! Счёт: ${maxScore}`;
+        document.getElementById('nameInputSection').style.display = 'none';
+        document.getElementById('leaderboardSection').style.display = 'none';
+      }
+    }
+  }
+
+  window.addEventListener('keydown', e => {
+    // === НОВОЕ: Блокировка ввода при Game Over ===
+    if(!game || game['gameOver'+myPlayerNum]) return;
+    
     if(e.key === 'ScrollLock' || e.key === 'Scroll_Lock') {
       if(currentMode === 'bot') {
         e.preventDefault();
@@ -1107,7 +1217,6 @@
         return;
       }
     }
-    if(game['gameOver'+myPlayerNum]) return;
     
     if(e.key === 'ArrowLeft') useActionLocal(myPlayerNum, 'left');
     else if(e.key === 'ArrowRight') useActionLocal(myPlayerNum, 'right');
@@ -1120,6 +1229,12 @@
     
     if(['ArrowLeft','ArrowRight','ArrowDown','ArrowUp',' '].includes(e.key)) e.preventDefault();
   });
+
+  initEventListeners(); // Убедимся, что слушатели инициализируются корректно
+  function initEventListeners() {
+    // Эта функция теперь пуста, так как все слушатели навешаны напрямую или через window, 
+    // но оставим её для совместимости, если вдруг понадобится расширить.
+  }
 
 </script>
 </body>
