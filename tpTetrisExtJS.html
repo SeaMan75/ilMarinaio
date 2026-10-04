@@ -142,6 +142,10 @@
     <button class="btn bomb" onclick="useActionLocal(1, 'bomb')">💣 Бомба (B)</button>
     <button class="btn wind" onclick="useActionLocal(1, 'wind')">💨 Ветер (V)</button>
     <button class="btn shield" onclick="useActionLocal(1, 'shield')">🛡️ Щит (F)</button>
+        <!-- === НОВОЕ: Фоновый MP3-плеер === -->
+    <audio id="bgMusic" loop preload="auto">
+      <source src="music.mp3" type="audio/mpeg">
+    </audio>
     <button class="btn music" id="musicBtn" onclick="toggleMusic()">🎵 Включить музыку</button>
   </div>
   
@@ -573,6 +577,7 @@
     game['score'+player] += 10;
   }
 
+ /* =============================
   let isMusicPlaying = false;
   let musicTimer = null;
   let noteIndex = 0;
@@ -697,7 +702,25 @@
   
   // === ИСПРАВЛЕНИЕ: Делаем функцию видимой глобально для onclick ===
   window.toggleMusic = toggleMusic;
-
+================================== */
+  // === НОВОЕ: Простое управление MP3 ===
+  function toggleMusic() {
+    const audio = document.getElementById('bgMusic');
+    const btn = document.getElementById('musicBtn');
+    
+    if (audio.paused) {
+      audio.volume = 0.3; // Тихо, чтобы не мешало игре
+      audio.play().catch(e => console.log('Автоплей заблокирован:', e));
+      btn.textContent = '🔇 Выключить музыку';
+      btn.style.opacity = '1';
+    } else {
+      audio.pause();
+      btn.textContent = '🎵 Включить музыку';
+      btn.style.opacity = '0.7';
+    }
+  }
+  window.toggleMusic = toggleMusic;
+ 
   // === ИСПРАВЛЕНИЕ: Улучшенная эвристика бота ===
   function evaluateBoard(simPiece, player) {
     let simBoard = game.board.map(row => [...row]);
