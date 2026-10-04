@@ -142,7 +142,7 @@
     <button class="btn bomb" onclick="useActionLocal(1, 'bomb')">💣 Бомба (B)</button>
     <button class="btn wind" onclick="useActionLocal(1, 'wind')">💨 Ветер (V)</button>
     <button class="btn shield" onclick="useActionLocal(1, 'shield')">🛡️ Щит (F)</button>
-        <!-- === НОВОЕ: Фоновый MP3-плеер === -->
+    <!-- === Фоновый MP3-плеер === -->
     <audio id="bgMusic" loop preload="auto">
       <source src="music.mp3" type="audio/mpeg">
     </audio>
@@ -176,11 +176,6 @@
   let COLS = 30, CELL = 24;
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
-
-  let audioCtx = null;
-  function ensureAudio(){ 
-    if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); 
-  }
 
   const BRICK_COLORS = {
     red: {base:'#d94a35', hi:'#ff8a70', lo:'#6b1a0e'},
@@ -249,7 +244,17 @@
     el.className = 'status ' + cls;
   }
 
+  // === ИСПРАВЛЕНИЕ: Явная проверка режима прямо в функции создания ===
   function createRoom(){
+    const modes = document.getElementsByName('gameMode');
+    let currentIsBotMode = false;
+    for(const m of modes) {
+      if(m.checked && m.value === 'bot') {
+        currentIsBotMode = true;
+        break;
+      }
+    }
+    
     const code = Math.random().toString(36).substring(2,7).toUpperCase();
     myRole = 'p1'; myPlayerNum = 1;
     
@@ -257,7 +262,7 @@
     document.getElementById('waiting').style.display = 'block';
     document.getElementById('roomCode').textContent = code;
     
-    if(isBotMode) {
+    if(currentIsBotMode) {
       setStatus('Запуск игры с компьютером...', 'ok');
       setTimeout(() => {
         document.getElementById('lobby').style.display = 'none';
@@ -281,8 +286,17 @@
   }
 
   function joinRoomFunc(){
-    if(isBotMode) {
-      alert('В режиме "Против компьютера" создавайте комнату в этом же окне!');
+    const modes = document.getElementsByName('gameMode');
+    let currentIsBotMode = false;
+    for(const m of modes) {
+      if(m.checked && m.value === 'bot') {
+        currentIsBotMode = true;
+        break;
+      }
+    }
+    
+    if(currentIsBotMode) {
+      alert('В режиме "Против компьютера" нажмите "Создать комнату" в этом же окне!');
       return;
     }
     const code = document.getElementById('joinInput').value.trim().toUpperCase();
@@ -577,142 +591,26 @@
     game['score'+player] += 10;
   }
 
- /* =============================
-  let isMusicPlaying = false;
-  let musicTimer = null;
-  let noteIndex = 0;
-
-
-    // === НОВОЕ: Аутентичный SID-звук Commodore 64 ===
-  function playRetroNote(freq, time, duration) {
-    if (!audioCtx) return;
-    
-    // Два генератора pulse-wave с разной шириной импульса для "жирного" SID-звука
-    const osc1 = audioCtx.createOscillator();
-    const osc2 = audioCtx.createOscillator();
-    osc1.type = 'sawtooth';  // В Web Audio нет pulse, но sawtooth + filter даёт похожий звук
-    osc2.type = 'square';
-    
-    osc1.frequency.value = freq;
-    osc2.frequency.value = freq * 1.002; // Лёгкая расстройка для "хора" (как в SID)
-    
-    // Резонансный фильтр — главная фишка SID
-    const filter = audioCtx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.value = Math.min(freq * 4, 3500); // Срез зависит от ноты
-    filter.Q.value = 8; // Высокий резонанс = характерный "воющий" звук SID
-    
-    // Огибающая громкости (ADSR как в SID)
-    const gain = audioCtx.createGain();
-    gain.gain.setValueAtTime(0, time);
-    gain.gain.linearRampToValueAtTime(0.15, time + 0.01);   // Attack: очень быстрый
-    gain.gain.linearRampToValueAtTime(0.10, time + 0.08);   // Decay
-    gain.gain.setValueAtTime(0.10, time + duration - 0.05); // Sustain
-    gain.gain.linearRampToValueAtTime(0, time + duration);  // Release
-    
-    // Смешиваем два осциллятора
-    const mix = audioCtx.createGain();
-    mix.gain.value = 0.5;
-    
-    osc1.connect(mix);
-    osc2.connect(mix);
-    mix.connect(filter);
-    filter.connect(gain);
-    gain.connect(audioCtx.destination);
-    
-    osc1.start(time);
-    osc2.start(time);
-    osc1.stop(time + duration);
-    osc2.stop(time + duration);
-  }
-  // === МЕЛОДИЯ "КАТЮША" (М. Блантер) ===
-  // Ноты в ля-минор. Длительность в долях (1 = четверть, 0.5 = восьмая, 2 = половинная)
-  // 0 = пауза
-  const KATYUSHA_TEMPO = 420; // мс на четверть (спокойный темп марша)
-  
-  // Частоты нот (Гц)
-  const N = {
-    _: 0,       // пауза
-    G3: 196.00, A3: 220.00, B3: 246.94,
-    C4: 261.63, D4: 293.66, E4: 329.63, F4: 349.23, G4: 392.00,
-    A4: 440.00, B4: 493.88,
-    C5: 523.25, D5: 587.33, E5: 659.25, F5: 698.46, G5: 783.99, A5: 880.00
-  };
-
-  // Мелодия: [нота, длительность в долях]
-  const KATYUSHA = [
-    // "Расцветали яблони и груши"
-    [N.A4, 1], [N.A4, 0.5], [N.B4, 0.5], [N.C5, 1], [N.D5, 1],
-    [N.E5, 1], [N.E5, 0.5], [N.D5, 0.5], [N.C5, 1], [N.B4, 1],
-    // "Поплыли туманы над рекой"
-    [N.A4, 1], [N.A4, 0.5], [N.B4, 0.5], [N.C5, 1], [N.D5, 1],
-    [N.C5, 1], [N.B4, 0.5], [N.A4, 0.5], [N.G3, 1], [N.A4, 1],
-    // "Выходила на берег Катюша"
-    [N.E4, 1], [N.E4, 0.5], [N.F4, 0.5], [N.G4, 1], [N.A4, 1],
-    [N.B4, 1], [N.B4, 0.5], [N.A4, 0.5], [N.G4, 1], [N.F4, 1],
-    // "На высокий берег крутой"
-    [N.E4, 1], [N.E4, 0.5], [N.F4, 0.5], [N.G4, 1], [N.A4, 1],
-    [N.G4, 1], [N.F4, 0.5], [N.E4, 0.5], [N.D4, 1], [N.C4, 1],
-    // "Ой ты, песня, песенка девичья"
-    [N.A4, 1], [N.A4, 0.5], [N.B4, 0.5], [N.C5, 1], [N.D5, 1],
-    [N.E5, 1], [N.E5, 0.5], [N.D5, 0.5], [N.C5, 1], [N.B4, 1],
-    // "Ты лети за ясным солнцем вслед"
-    [N.A4, 1], [N.A4, 0.5], [N.B4, 0.5], [N.C5, 1], [N.D5, 1],
-    [N.C5, 1], [N.B4, 0.5], [N.A4, 0.5], [N.G3, 1], [N.A4, 1],
-    // Финальная фраза с задержкой
-    [N.E4, 1], [N.F4, 1], [N.G4, 2],
-    [N.A4, 1], [N.G4, 1], [N.F4, 1], [N.E4, 1],
-    [N.D4, 1], [N.C4, 1], [N.A3, 2],
-    [N._, 2] // пауза перед повтором
-  ];
-
-  function scheduleNextNote() {
-    if (!isMusicPlaying || !audioCtx) return;
-    
-    const [freq, beats] = KATYUSHA[noteIndex % KATYUSHA.length];
-    const duration = beats * KATYUSHA_TEMPO / 1000; // в секундах
-    
-    if (freq > 0) {
-      // Играем ноту чуть короче, чтобы было "staccato"-подобное звучание
-      playRetroNote(freq, audioCtx.currentTime, duration * 0.85);
-    }
-    
-    noteIndex++;
-    musicTimer = setTimeout(scheduleNextNote, duration * 1000);
-  }
-
-
-  function toggleMusic() {
-    ensureAudio();
-    const btn = document.getElementById('musicBtn');
-    if (isMusicPlaying) {
-      isMusicPlaying = false;
-      clearTimeout(musicTimer);
-      btn.textContent = '🎵 Включить музыку';
-      btn.style.opacity = '0.7';
-    } else {
-      if (audioCtx.state === 'suspended') audioCtx.resume();
-      isMusicPlaying = true;
-      noteIndex = 0;
-      scheduleNextNote();
-      btn.textContent = '🔇 Выключить музыку';
-      btn.style.opacity = '1';
-    }
-  }
-  
-  // === ИСПРАВЛЕНИЕ: Делаем функцию видимой глобально для onclick ===
-  window.toggleMusic = toggleMusic;
-================================== */
-  // === НОВОЕ: Простое управление MP3 ===
+  // === Простое управление MP3 с диагностикой ===
   function toggleMusic() {
     const audio = document.getElementById('bgMusic');
     const btn = document.getElementById('musicBtn');
     
+    if (!audio) {
+      console.error('Аудио элемент не найден!');
+      return;
+    }
+    
     if (audio.paused) {
-      audio.volume = 0.3; // Тихо, чтобы не мешало игре
-      audio.play().catch(e => console.log('Автоплей заблокирован:', e));
-      btn.textContent = '🔇 Выключить музыку';
-      btn.style.opacity = '1';
+      audio.volume = 0.3;
+      audio.play().then(() => {
+        btn.textContent = '🔇 Выключить музыку';
+        btn.style.opacity = '1';
+        console.log('Музыка успешно запущена');
+      }).catch(e => {
+        console.error('Ошибка воспроизведения:', e);
+        alert('Не удалось запустить музыку. Убедитесь, что:\n1. Файл "music.mp3" существует\n2. Он лежит в той же папке, что и HTML\n3. Формат файла корректный');
+      });
     } else {
       audio.pause();
       btn.textContent = '🎵 Включить музыку';
@@ -721,8 +619,8 @@
   }
   window.toggleMusic = toggleMusic;
  
-  // === ИСПРАВЛЕНИЕ: Улучшенная эвристика бота ===
-    function evaluateBoard(simPiece, player) {
+  // === Улучшенная эвристика бота ===
+  function evaluateBoard(simPiece, player) {
     let simBoard = game.board.map(row => [...row]);
     
     const botHalfOnly = document.getElementById('botHalfOnly')?.checked ?? true;
@@ -781,7 +679,6 @@
           blockFound = true;
         } else if(blockFound) {
           holes++;
-          // Проверяем, это колодец (узкая дыра)
           let leftWall = (x === evalStartCol) || simBoard[y][x-1];
           let rightWall = (x === evalEndCol-1) || simBoard[y][x+1];
           if(leftWall && rightWall) {
@@ -790,7 +687,7 @@
               if(!simBoard[dy][x]) depth++;
               else break;
             }
-            wells += depth * depth; // Квадратичный штраф за глубину
+            wells += depth * depth;
           }
         }
       }
@@ -814,13 +711,12 @@
       bumpiness += Math.abs(colHeights[x] - colHeights[x+1]);
     }
 
-    // Улучшенные веса
-    const wLines = 1.5;        // Бонус за очистку линий (увеличен)
-    const wHeight = -0.6;      // Штраф за общую высоту
-    const wMaxHeight = -2.0;   // Штраф за максимальную высоту (чтобы не строить башни)
-    const wHoles = -6.0;       // Штраф за дыры (увеличен)
-    const wWells = -1.5;       // Штраф за колодцы (теперь квадратичный)
-    const wBumpiness = -2.0;   // Штраф за неровности (увеличен)
+    const wLines = 1.5;
+    const wHeight = -0.6;
+    const wMaxHeight = -2.0;
+    const wHoles = -6.0;
+    const wWells = -1.5;
+    const wBumpiness = -2.0;
 
     return (linesCleared * wLines) + 
            (aggregateHeight * wHeight) + 
@@ -1076,16 +972,15 @@
       if(piece && !game['gameOver'+p]) drawPiece(piece);
     }
    
-        // === НОВОЕ: Затеняем только половину проигравшего ===
-    const sectionWidth = Math.floor(COLS / PLAYER_COUNT);
+    // === Затеняем только половину проигравшего ===
+    const secWidth = Math.floor(COLS / PLAYER_COUNT);
     for(let p=1; p<=PLAYER_COUNT; p++){
       if(game['gameOver' + p]) {
-        const startX = (p - 1) * sectionWidth * CELL;
-        const width = sectionWidth * CELL;
+        const startX = (p - 1) * secWidth * CELL;
+        const width = secWidth * CELL;
         ctx.fillStyle = 'rgba(0,0,0,0.5)';
         ctx.fillRect(startX, 0, width, h);
         
-        // Добавляем текст "ПРОИГРЫШ"
         ctx.save();
         ctx.fillStyle = 'rgba(255,100,100,0.8)';
         ctx.font = 'bold 24px Georgia';
@@ -1137,7 +1032,6 @@
     ctx.strokeRect(px+0.5,py+0.5,s-1,s-1);
   }
 
-  // === ИСПРАВЛЕНИЕ: Полностью переписанный gameLoop ===
   function gameLoop(ts){
     if(!lastTime) lastTime = ts;
     const dt = ts - lastTime; lastTime = ts;
@@ -1153,7 +1047,6 @@
       for(let p=1; p<=PLAYER_COUNT; p++) if(!game['gameOver'+p]) anyActive = true;
       
       if(anyActive){
-        // Обновление щитов
         for(let p=1; p<=PLAYER_COUNT; p++){
           if(game['shield' + p] > 0) {
             game['shield' + p] -= dt;
@@ -1161,10 +1054,9 @@
           }
         }
 
-        // === ИСПРАВЛЕНИЕ: Проверка lock delay КАЖДЫЙ КАДР ===
         for(let p=1; p<=PLAYER_COUNT; p++){
           if(game['gameOver'+p]) continue;
-          if(isBotMode && p === 2) continue; // Бот управляет сам
+          if(isBotMode && p === 2) continue;
           
           const piece = game['cur'+p];
           if(!piece) continue;
@@ -1185,7 +1077,6 @@
           }
         }
 
-        // Обычное падение по таймеру
         game.dropTimer += dt;
         if(game.dropTimer > game.dropInterval){
           game.dropTimer = 0;
@@ -1209,7 +1100,6 @@
             const piece = game['cur'+p];
             if(!piece) continue;
             
-            // Фигура падает только если не на земле
             if(!collide(piece, 0, 1, null, false)){
               piece.y++;
             }
@@ -1240,8 +1130,6 @@
       else sendCommand(action);
     }
   }
-  
-  // === ИСПРАВЛЕНИЕ: Делаем функцию видимой глобально ===
   window.useActionLocal = useActionLocal;
 
   function processKey(key, isCtrl){
@@ -1287,14 +1175,13 @@
         return;
       }
 
-      // === НОВОЕ: Пасхалка ScrollLock спасает бота ===
+      // === Пасхалка ScrollLock спасает бота ===
       if(e.key === 'ScrollLock' && isBotMode) {
         e.preventDefault();
         console.log('ScrollLock нажат! Спасение бота!');
         
-        // Очищаем всю половину бота
         const sectionWidth = Math.floor(COLS / PLAYER_COUNT);
-        const startCol = sectionWidth; // Бот играет на правой половине
+        const startCol = sectionWidth;
         const endCol = COLS;
         
         for(let y=0; y<ROWS; y++){
@@ -1303,10 +1190,8 @@
           }
         }
         
-        // Бонусные очки боту
         game.score2 += 500;
         
-        // Визуальный эффект (мигание)
         const flashInterval = setInterval(() => {
           const overlay = document.getElementById('gameContainer');
           overlay.style.boxShadow = '0 0 50px rgba(255,215,0,0.8)';
