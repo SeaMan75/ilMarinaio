@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Brick Tetris Online v1.0.0.5</title>
+<title>Brick Tetris Online</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0;user-select:none;-webkit-tap-highlight-color:transparent}
   html,body{height:100%;background:linear-gradient(135deg,#1a0f28 0%,#2a1840 100%);font-family:Georgia,serif;color:#f5e0b8;overflow:hidden}
@@ -86,7 +86,7 @@
 
 <div id="lobby">
   <h1>🧱 Brick Tetris</h1>
-  <div id="version">v1.0.0.3</div>
+  <div id="version">v</div>
   
   <div class="modeSelector" style="flex-direction: column; align-items: flex-start; gap: 10px;">
     <div style="font-size: 14px; opacity: 0.8; margin-bottom: 4px;">Выберите режим:</div>
@@ -201,7 +201,9 @@
 <script type="module">
   import { joinRoom } from 'https://esm.sh/trystero@0.20.0';
 
-  const VERSION = "1.0.0.3";
+  const VERSION = "1.0.0.5";
+  document.title = `Brick Tetris Online v${VERSION}`;
+  document.getElementById('version').textContent = `v${VERSION}`;
   console.log(`🎮 Brick Tetris v${VERSION} загружен`);
 
   const APP_ID = 'brick-tetris-v' + VERSION.replace(/\./g, '');
