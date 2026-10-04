@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Brick Tetris Online — Мультиплеер и Одиночная игра</title>
+<title>Brick Tetris Online v1.0.0.1</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0;user-select:none;-webkit-tap-highlight-color:transparent}
   html,body{height:100%;background:linear-gradient(135deg,#1a0f28 0%,#2a1840 100%);font-family:Georgia,serif;color:#f5e0b8;overflow:hidden}
@@ -11,6 +11,7 @@
   
   #lobby{position:fixed;inset:0;background:rgba(0,0,0,0.95);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;z-index:100;padding:20px}
   #lobby h1{color:#ffd27a;font-size:28px;text-shadow:0 0 20px rgba(255,210,122,0.5);text-align:center}
+  #version{font-size:12px;opacity:0.6;margin-top:-10px;}
   .lobbyBtn{background:linear-gradient(180deg,#6b3a1e,#4a2512);color:#fff;border:2px solid #c88a4a;border-radius:10px;padding:14px 28px;font-size:17px;cursor:pointer;box-shadow:0 4px 0 #2a1208;font-weight:bold}
   .lobbyBtn:active{transform:translateY(3px);box-shadow:0 1px 0 #2a1208}
   .lobbyBtn:disabled{opacity:0.5;cursor:not-allowed}
@@ -84,6 +85,7 @@
 
 <div id="lobby">
   <h1>🧱 Brick Tetris</h1>
+  <div id="version">v1.0.0.1</div>
   
   <div class="modeSelector" style="flex-direction: column; align-items: flex-start; gap: 10px;">
     <div style="font-size: 14px; opacity: 0.8; margin-bottom: 4px;">Выберите режим:</div>
@@ -198,11 +200,15 @@
 <script type="module">
   import { joinRoom } from 'https://esm.sh/trystero@0.20.0';
 
-  const APP_ID = 'brick-tetris-v8-final';
+  // === СИСТЕМА ВЕРСИОНИРОВАНИЯ ===
+  const VERSION = "1.0.0.1";
+  console.log(`Brick Tetris v${VERSION} загружен`);
+
+  const APP_ID = 'brick-tetris-v' + VERSION.replace(/\./g, '');
   let room = null, myRole = null, myPlayerNum = 0, PLAYER_COUNT = 1;
   let game = null, lastTime = 0, connectedPeers = [];
   let currentMode = 'single_std';
-  let sendCmd = null, getCmd = null, sendState = null, getState = null, sendConfig = null, getConfig = null, sendLeaderboard = null, getLeaderboard = null;
+  let sendCmd = null, getCmd = null, sendState = null, getState = null, sendConfig = null, getConfig = null;
 
   let COLS = 10, ROWS = 20, CELL = 24;
   const canvas = document.getElementById('game');
@@ -311,10 +317,17 @@
     }
   }
 
+  // === ИСПРАВЛЕННАЯ КНОПКА "НАЧАТЬ ИГРУ" ===
   document.getElementById('btnCreate').addEventListener('click', () => {
+    console.log('Кнопка "Начать игру" нажата!');
+    
     if(currentMode === 'online') {
-      const onlinePlayers = document.querySelector('input[name="onlinePlayers"]:checked').value;
-      PLAYER_COUNT = parseInt(onlinePlayers);
+      const onlinePlayers = document.querySelector('input[name="onlinePlayers"]:checked');
+      if(!onlinePlayers) {
+        alert('Выберите количество игроков!');
+        return;
+      }
+      PLAYER_COUNT = parseInt(onlinePlayers.value);
 
       const code = Math.random().toString(36).substring(2,7).toUpperCase();
       myRole = 'p1'; myPlayerNum = 1;
@@ -330,17 +343,8 @@
         [sendCmd, getCmd] = room.makeAction('cmd');
         [sendState, getState] = room.makeAction('state');
         [sendConfig, getConfig] = room.makeAction('config');
-        [sendLeaderboard, getLeaderboard] = room.makeAction('leaderboard');
         
         getCmd((data) => { if(data && data.action) handleCommand(data.player, data.action); });
-        
-        // Синхронизация таблицы лидеров
-        getLeaderboard((data) => {
-          if(data && data.board) {
-            const key = getLeaderboardKey();
-            localStorage.setItem(key, JSON.stringify(data.board));
-          }
-        });
         
         room.onPeerJoin(peerId => {
           connectedPeers.push(peerId);
@@ -352,7 +356,10 @@
             setStatus(`Подключился игрок ${connectedPeers.length + 1}. Ожидание...`, 'info');
           }
         });
-      } catch(e) { setStatus('Ошибка: ' + e.message, 'err'); }
+      } catch(e) { 
+        console.error('Ошибка подключения:', e);
+        setStatus('Ошибка: ' + e.message, 'err'); 
+      }
     } else {
       myPlayerNum = 1;
       startGameLogic();
@@ -374,7 +381,6 @@
       [sendCmd, getCmd] = room.makeAction('cmd');
       [sendState, getState] = room.makeAction('state');
       [sendConfig, getConfig] = room.makeAction('config');
-      [sendLeaderboard, getLeaderboard] = room.makeAction('leaderboard');
       
       document.querySelectorAll('.modeSelector input').forEach(el => el.disabled = true);
       document.getElementById('btnCreate').style.display = 'none';
@@ -477,9 +483,7 @@
     return false;
   }
 
-  // === НОВАЯ ЛОГИКА ГИРИ ===
   function removeAnvil(player) {
-    // Гиря исчезает при вращении
     playSound('sfxMetal');
     destroyAnim = { type: 'shatter', x: game['cur'+player].x, y: game['cur'+player].y, timer: 500, player: player };
     game['cur'+player] = spawnPiece(player);
@@ -509,26 +513,23 @@
     const piece = game['cur'+player];
     if(!piece) return false;
     
-    // Специальная логика для гири
     if(piece.type === 'anvil') {
       const newX = piece.x + dx;
       const sectionWidth = Math.floor(COLS / PLAYER_COUNT);
       
-      // Удар о стенку - звук, но не исчезает
       if(newX < 0 || newX + piece.shape[0].length > COLS) {
         playSound('sfxMetal');
-        return false; // Не двигаем
+        return false;
       }
       
-      // Попытка зайти на чужую половину - отскок
       if(PLAYER_COUNT > 1) {
         if(player === 1 && newX >= sectionWidth) {
           playSound('sfxMetal');
-          return false; // Отскок
+          return false;
         }
         if(player === 2 && newX + piece.shape[0].length <= sectionWidth) {
           playSound('sfxMetal');
-          return false; // Отскок
+          return false;
         }
       }
     }
@@ -545,7 +546,6 @@
     const piece = game['cur'+player];
     if(!piece) return false;
     
-    // Гиря исчезает при вращении
     if(piece.type === 'anvil') {
       removeAnvil(player);
       return true;
@@ -823,13 +823,447 @@
     return (linesCleared * 1.5) + (aggregateHeight * -0.6) + (maxHeight * -2.0) + (holes * -6.0) + (wells * -1.5) + (bumpiness * -2.0);
   }
 
-  // === УЛУЧШЕННЫЙ ИИ БОТА С ЛОГИКОЙ ГИРИ ===
   function makeBotMove(player) {
     const piece = game['cur'+player];
     if(!piece || game['gameOver'+player]) return;
 
-    // Если у бота гиря - рандомно решаем что делать
     if(piece.type === 'anvil') {
-      const decision = Math.random();
-      if(decision < 0.5) {
-        // Убираем ги
+      if(Math.random() < 0.5) {
+        removeAnvil(player);
+      }
+      return;
+    }
+
+    let bestScore = -Infinity, bestMove = { rot: piece.rot, x: piece.x };
+    const botHalfOnly = document.getElementById('botHalfOnly')?.checked ?? true;
+    const halfCol = Math.floor(COLS / 2);
+
+    for(let r=0; r<4; r++){
+      let testShape = SHAPES[piece.type][r];
+      let minX = 0, maxX = COLS - testShape[0].length;
+      if (botHalfOnly && player === 2) { minX = Math.max(minX, halfCol); if (minX > maxX) continue; }
+
+      for(let x=minX; x<=maxX; x++){
+        let simPiece = { ...piece, rot: r, shape: testShape, x: x, y: piece.y };
+        let isValid = true;
+        for(let sy=0; sy<simPiece.shape.length; sy++){
+          for(let sx=0; sx<simPiece.shape[sy].length; sx++){
+            if(simPiece.shape[sy][sx]) {
+              let nx = simPiece.x + sx, ny = simPiece.y + sy;
+              if(nx < 0 || nx >= COLS || ny >= ROWS || (ny >= 0 && game.board[ny][nx])) isValid = false;
+            }
+          }
+        }
+        if(isValid) {
+          let score = evaluateBoard(simPiece, player) + (Math.random() - 0.5) * 0.2;
+          if(score > bestScore) { bestScore = score; bestMove = { rot: r, x: x }; }
+        }
+      }
+    }
+
+    let currentRot = piece.rot, rotAttempts = 0;
+    while(currentRot !== bestMove.rot && rotAttempts < 4) {
+      if(!tryRotate(player)) break;
+      currentRot = (currentRot - 1 + 4) % 4;
+      rotAttempts++;
+    }
+    
+    let moveAttempts = 0;
+    while(piece.x < bestMove.x && moveAttempts < 20) { if(!tryMove(player, 1, 0)) break; moveAttempts++; }
+    moveAttempts = 0;
+    while(piece.x > bestMove.x && moveAttempts < 20) { if(!tryMove(player, -1, 0)) break; moveAttempts++; }
+
+    setTimeout(() => {
+      if(game && !game['gameOver'+player] && game['cur'+player] === piece) hardDrop(player);
+    }, 600 + Math.random() * 600);
+  }
+
+  function applyRemoteState(data) {
+    if(!game) return;
+    game.board = data.board;
+    for(let p=1; p<=PLAYER_COUNT; p++) {
+      if(data['cur'+p]) game['cur'+p] = data['cur'+p];
+      if(data['next'+p]) game['next'+p] = data['next'+p];
+      game['score'+p] = data['score'+p];
+      game['lines'+p] = data['lines'+p];
+      game['gameOver'+p] = data['gameOver'+p];
+      game['shield'+p] = data['shield'+p];
+    }
+    updateHUD();
+  }
+
+  function broadcastState() {
+    if(!game) return;
+    const state = { board: game.board };
+    for(let p=1; p<=PLAYER_COUNT; p++) {
+      state['cur'+p] = game['cur'+p]; state['next'+p] = game['next'+p];
+      state['score'+p] = game['score'+p]; state['lines'+p] = game['lines'+p];
+      state['gameOver'+p] = game['gameOver'+p]; state['shield'+p] = game['shield'+p];
+    }
+    sendState(state);
+  }
+
+  function updateHUD() {
+    if(!game) return;
+    for(let p=1; p<=PLAYER_COUNT; p++) {
+      const sEl = document.getElementById('score'+p); if(sEl) sEl.textContent = game['score'+p];
+      const lEl = document.getElementById('lines'+p); if(lEl) lEl.textContent = game['lines'+p];
+      if(PLAYER_COUNT > 1 || currentMode.startsWith('single')) {
+        const bEl = document.getElementById('bombs'+p); if(bEl) bEl.textContent = game['bombs'+p] || 0;
+        const wEl = document.getElementById('wind'+p); if(wEl) wEl.textContent = game['wind'+p] || 0;
+        const shEl = document.getElementById('shield'+p);
+        if(shEl) shEl.textContent = (game['shield'+p] > 0 ? 'ON' : (SHIELD_LEVELS[shieldLevelIndex]/1000) + 'с');
+      }
+    }
+    const btnShield = document.getElementById('btnShield');
+    if(btnShield && PLAYER_COUNT > 1) {
+      if(game['shield'+myPlayerNum] > 0) {
+        btnShield.textContent = '🛡️ Щит ВКЛ (F)'; btnShield.style.background = 'linear-gradient(180deg,#4affff,#104a5a)';
+      } else {
+        btnShield.textContent = `🛡️ Щит (${SHIELD_LEVELS[shieldLevelIndex]/1000}с)`; btnShield.style.background = '';
+      }
+    }
+  }
+
+  function getLeaderboardKey() {
+    return 'tetris_lb_' + currentMode;
+  }
+
+  window.saveAndShowLeaderboard = function() {
+    const nameInput = document.getElementById('playerNameInput');
+    const name = nameInput.value.trim().replace(/[<>]/g, '') || 'Аноним';
+    const score = game ? game.score1 : 0;
+    
+    const key = getLeaderboardKey();
+    let board = JSON.parse(localStorage.getItem(key) || '[]');
+    board.push({ name: name, score: score, date: new Date().toLocaleDateString() });
+    board.sort((a, b) => b.score - a.score);
+    board = board.slice(0, 16);
+    localStorage.setItem(key, JSON.stringify(board));
+    
+    document.getElementById('nameInputSection').style.display = 'none';
+    document.getElementById('leaderboardSection').style.display = 'block';
+    renderLeaderboard(score);
+  }
+
+  function renderLeaderboard(currentScore) {
+    const key = getLeaderboardKey();
+    const board = JSON.parse(localStorage.getItem(key) || '[]');
+    const tbody = document.getElementById('leaderboardBody');
+    tbody.innerHTML = '';
+    
+    if (board.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:15px; opacity:0.6;">Пока нет записей</td></tr>';
+      return;
+    }
+
+    board.forEach((entry, index) => {
+      const tr = document.createElement('tr');
+      if (index === 0 && entry.score === currentScore) {
+        tr.classList.add('me');
+      }
+      tr.innerHTML = `
+        <td>${index + 1}</td>
+        <td>${entry.name}</td>
+        <td>${entry.score}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function checkGameOver() {
+    if(!game) return;
+    let allOver = true;
+    for(let p=1; p<=PLAYER_COUNT; p++) if(!game['gameOver'+p]) allOver = false;
+    
+    if(allOver || (PLAYER_COUNT === 1 && game.gameOver1)) {
+      document.getElementById('controls').style.display = 'none';
+      
+      const overlay = document.getElementById('gameOverOverlay');
+      overlay.style.display = 'flex';
+      
+      if(PLAYER_COUNT === 1) {
+        document.getElementById('goTitle').textContent = 'Игра окончена';
+        document.getElementById('goWinner').textContent = `Ваш финальный счёт: ${game.score1}`;
+        document.getElementById('nameInputSection').style.display = 'flex';
+        document.getElementById('leaderboardSection').style.display = 'none';
+        document.getElementById('playerNameInput').value = '';
+        setTimeout(() => document.getElementById('playerNameInput').focus(), 100);
+      } else {
+        let maxScore = 0, winnerNum = 0;
+        for(let p=1; p<=PLAYER_COUNT; p++){
+          if(game['score'+p] > maxScore){ maxScore = game['score'+p]; winnerNum = p; }
+        }
+        const colors = ['', '🔴', '🔵', '🟢'];
+        document.getElementById('goTitle').textContent = 'Игра окончена';
+        document.getElementById('goWinner').textContent = `${colors[winnerNum]} Игрок ${winnerNum} победил! Счёт: ${maxScore}`;
+        document.getElementById('nameInputSection').style.display = 'none';
+        document.getElementById('leaderboardSection').style.display = 'none';
+      }
+    }
+  }
+
+  function draw() {
+    if(!game) return;
+    const w = canvas.width, h = canvas.height;
+    ctx.fillStyle = '#1a1008'; ctx.fillRect(0,0,w,h);
+    
+    ctx.strokeStyle = 'rgba(255,200,120,0.05)'; ctx.lineWidth = 1;
+    for(let x=1;x<COLS;x++){ ctx.beginPath(); ctx.moveTo(x*CELL,0); ctx.lineTo(x*CELL,h); ctx.stroke(); }
+    for(let y=1;y<ROWS;y++){ ctx.beginPath(); ctx.moveTo(0,y*CELL); ctx.lineTo(w,y*CELL); ctx.stroke(); }
+
+    if(PLAYER_COUNT > 1) {
+      const sectionWidth = Math.floor(COLS / PLAYER_COUNT);
+      ctx.strokeStyle = 'rgba(255, 210, 122, 0.4)'; ctx.lineWidth = 3; ctx.setLineDash([8, 8]);
+      for(let i=1; i<PLAYER_COUNT; i++){ ctx.beginPath(); ctx.moveTo(i * sectionWidth * CELL, 0); ctx.lineTo(i * sectionWidth * CELL, h); ctx.stroke(); }
+      ctx.setLineDash([]);
+      for(let p=1; p<=PLAYER_COUNT; p++){
+        if(game['shield'+p] > 0) {
+          const startX = (p - 1) * sectionWidth * CELL;
+          ctx.save();
+          ctx.fillStyle = `rgba(100, 220, 255, ${0.15 + 0.1 * Math.sin(lastTime / 150)})`;
+          ctx.fillRect(startX, 0, sectionWidth * CELL, h);
+          ctx.strokeStyle = 'rgba(150, 255, 255, 0.9)'; ctx.lineWidth = 4;
+          ctx.strokeRect(startX + 2, 0, sectionWidth * CELL - 4, h);
+          ctx.restore();
+        }
+      }
+    }
+
+    for(let y=0;y<ROWS;y++){
+      for(let x=0;x<COLS;x++){
+        if(game.board[y][x]) drawBrick(x,y,game.board[y][x]);
+      }
+    }
+
+    const rowsToHighlight = [];
+    for(let p=1; p<=PLAYER_COUNT; p++){
+      const piece = game['cur'+p];
+      if(piece && !game['gameOver'+p]) {
+        if(piece.type !== 'anvil') {
+          let ghostY = piece.y;
+          while(!collide(piece, 0, ghostY - piece.y + 1, null, true)) ghostY++;
+          
+          ctx.globalAlpha = 0.15;
+          for(let y=0;y<piece.shape.length;y++){
+            for(let x=0;x<piece.shape[y].length;x++){
+              if(piece.shape[y][x]){
+                ctx.fillStyle = piece.color.hi;
+                ctx.fillRect((piece.x+x)*CELL, (piece.y+y+ (ghostY - piece.y))*CELL, CELL, CELL);
+              }
+            }
+          }
+          ctx.globalAlpha = 1;
+
+          for(let py=0; py<piece.shape.length; py++){
+            const boardY = ghostY + py;
+            if(boardY < 0 || boardY >= ROWS) continue;
+            let filledSpots = 0;
+            for(let x=0; x<COLS; x++){ if(game.board[boardY][x]) filledSpots++; }
+            let pieceBlocksInRow = 0;
+            for(let px=0; px<piece.shape[py].length; px++){ if(piece.shape[py][px] === 1) pieceBlocksInRow++; }
+            if(filledSpots + pieceBlocksInRow === COLS && !rowsToHighlight.includes(boardY)) {
+              rowsToHighlight.push(boardY);
+            }
+          }
+        }
+        
+        for(let y=0;y<piece.shape.length;y++){
+          for(let x=0;x<piece.shape[y].length;x++){
+            if(piece.shape[y][x]) {
+              if(piece.type === 'anvil' && imgAnvil.complete) {
+                ctx.drawImage(imgAnvil, (piece.x+x)*CELL, (piece.y+y)*CELL, CELL*2, CELL*2);
+              } else {
+                drawBrick(piece.x+x, piece.y+y, piece.color);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    if(rowsToHighlight.length > 0){
+      ctx.save();
+      ctx.fillStyle = 'rgba(255, 215, 0, 0.35)';
+      ctx.shadowColor = '#ffd700'; ctx.shadowBlur = 25;
+      for(const y of rowsToHighlight){ ctx.fillRect(0, y * CELL, canvas.width, CELL); }
+      ctx.restore();
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+      for(const y of rowsToHighlight){
+        ctx.fillRect(0, y * CELL, canvas.width, 2);
+        ctx.fillRect(0, y * CELL + CELL - 2, canvas.width, 2);
+      }
+    }
+
+    if(destroyAnim && destroyAnim.timer > 0) {
+      destroyAnim.timer -= 16;
+      const alpha = destroyAnim.timer / 1500;
+      ctx.save();
+      if(destroyAnim.type === 'fire') {
+        ctx.fillStyle = `rgba(255, 100, 0, ${alpha})`;
+        ctx.shadowColor = '#ff4400'; ctx.shadowBlur = 20;
+        ctx.fillRect(destroyAnim.x * CELL, destroyAnim.y * CELL, destroyAnim.w * CELL, destroyAnim.h * CELL);
+      } else if(destroyAnim.type === 'shatter') {
+        if(imgAnvilBroken.complete) {
+          ctx.globalAlpha = alpha;
+          ctx.drawImage(imgAnvilBroken, destroyAnim.x * CELL, destroyAnim.y * CELL, CELL*2, CELL*2);
+        }
+      }
+      ctx.restore();
+    }
+
+    if(PLAYER_COUNT > 1) {
+      const secW = Math.floor(COLS / PLAYER_COUNT);
+      for(let p=1; p<=PLAYER_COUNT; p++){
+        if(game['gameOver'+p]) {
+          ctx.fillStyle = 'rgba(0,0,0,0.6)';
+          ctx.fillRect((p-1)*secW*CELL, 0, secW*CELL, h);
+          ctx.fillStyle = '#ff6a6a'; ctx.font = 'bold 24px Georgia'; ctx.textAlign = 'center';
+          ctx.fillText('ПРОИГРЫШ', (p-1)*secW*CELL + secW*CELL/2, h/2);
+        }
+      }
+    } else if(game.gameOver1) {
+      ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0,0,w,h);
+      ctx.fillStyle = '#ff6a6a'; ctx.font = 'bold 28px Georgia'; ctx.textAlign = 'center';
+      ctx.fillText('ИГРА ОКОНЧЕНА', w/2, h/2);
+    }
+    drawNextPiece();
+  }
+
+  function drawNextPiece() {
+    nextCtx.fillStyle = 'rgba(0,0,0,0.4)'; nextCtx.fillRect(0,0,100,100);
+    const piece = game['next'+myPlayerNum];
+    if(!piece) return;
+    const scale = piece.type === 'anvil' ? 20 : 20;
+    const offsetX = (100 - piece.shape[0].length * scale) / 2;
+    const offsetY = (100 - piece.shape.length * scale) / 2;
+    for(let y=0; y<piece.shape.length; y++){
+      for(let x=0; x<piece.shape[y].length; x++){
+        if(piece.shape[y][x]) {
+          if(piece.type === 'anvil' && imgAnvil.complete) {
+             nextCtx.drawImage(imgAnvil, offsetX + x*scale, offsetY + y*scale, scale*2, scale*2);
+          } else {
+             nextCtx.fillStyle = piece.color.base;
+             nextCtx.fillRect(offsetX + x*scale, offsetY + y*scale, scale, scale);
+             nextCtx.strokeStyle = piece.color.hi; nextCtx.strokeRect(offsetX + x*scale, offsetY + y*scale, scale, scale);
+          }
+        }
+      }
+    }
+  }
+
+  function drawBrick(x,y,color){
+    const s = CELL, px = x*s, py = y*s;
+    ctx.fillStyle = color.base; ctx.fillRect(px,py,s,s);
+    const g = ctx.createLinearGradient(px,py,px+s,py+s);
+    g.addColorStop(0, color.hi); g.addColorStop(0.4, 'rgba(0,0,0,0)'); g.addColorStop(1, color.lo);
+    ctx.fillStyle = g; ctx.fillRect(px,py,s,s);
+    ctx.strokeStyle = color.hi; ctx.globalAlpha = 0.8; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(px+1,py+s-1); ctx.lineTo(px+1,py+1); ctx.lineTo(px+s-1,py+1); ctx.stroke();
+    ctx.strokeStyle = color.lo; ctx.globalAlpha = 0.9;
+    ctx.beginPath(); ctx.moveTo(px+s-1,py+1); ctx.lineTo(px+s-1,py+s-1); ctx.lineTo(px+1,py+s-1); ctx.stroke();
+    ctx.globalAlpha = 1; ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 1;
+    ctx.strokeRect(px+0.5,py+0.5,s-1,s-1);
+  }
+
+  function gameLoop(ts) {
+    if(!lastTime) lastTime = ts;
+    const dt = ts - lastTime; lastTime = ts;
+    
+    if(currentMode === 'online' && myRole !== 'p1' && !game) { requestAnimationFrame(gameLoop); return; }
+    
+    if(game) {
+      if(PLAYER_COUNT > 1) {
+        let allOver = true;
+        for(let p=1; p<=PLAYER_COUNT; p++) if(!game['gameOver'+p]) allOver = false;
+        if(allOver) { draw(); checkGameOver(); requestAnimationFrame(gameLoop); return; }
+      } else if(game.gameOver1) { draw(); checkGameOver(); requestAnimationFrame(gameLoop); return; }
+
+      for(let p=1; p<=PLAYER_COUNT; p++){
+        if(game['gameOver'+p]) continue;
+        
+        if(currentMode === 'bot' && p === 2) {
+          if(game['cur'+p].y === 0 && !game.botThinking2) {
+            game.botThinking2 = true;
+            setTimeout(() => {
+              if(game && !game.gameOver2 && game.cur2 && game.cur2.y === 0) {
+                makeBotMove(2);
+              }
+              game.botThinking2 = false;
+            }, 400);
+          }
+          continue;
+        }
+        
+        const piece = game['cur'+p];
+        if(!piece) continue;
+        
+        const isOnGround = collide(piece, 0, 1, null, true);
+        if(isOnGround) {
+          if(game['lockStart'+p] === 0) game['lockStart'+p] = lastTime;
+          if(lastTime - game['lockStart'+p] >= 1000) {
+            if(piece.type === 'anvil') smashAnvil(p, false);
+            else merge(piece, p);
+            game['lockStart'+p] = 0;
+            if(collide(game['cur'+p], 0, 0, null, true)) game['gameOver'+p] = true;
+          }
+        } else {
+          game['lockStart'+p] = 0;
+        }
+      }
+
+      game.dropTimer += dt;
+      if(game.dropTimer > game.dropInterval){
+        game.dropTimer = 0;
+        for(let p=1; p<=PLAYER_COUNT; p++){
+          if(game['gameOver'+p] || (currentMode === 'bot' && p === 2)) continue;
+          const piece = game['cur'+p];
+          if(piece && !collide(piece, 0, 1, null, true)) piece.y++;
+        }
+      }
+      
+      if(PLAYER_COUNT > 1) {
+        for(let p=1; p<=PLAYER_COUNT; p++){
+          if(game['shield'+p] > 0) {
+            game['shield'+p] -= dt;
+            if(game['shield'+p] < 0) game['shield'+p] = 0;
+          }
+        }
+      }
+      updateHUD();
+      checkGameOver();
+    }
+    draw();
+    requestAnimationFrame(gameLoop);
+  }
+
+  window.addEventListener('keydown', e => {
+    if(!game || game['gameOver'+myPlayerNum]) return;
+    
+    if(e.key === 'ScrollLock' || e.key === 'Scroll_Lock') {
+      if(currentMode === 'bot') {
+        e.preventDefault();
+        const secW = Math.floor(COLS / 2);
+        for(let y=0; y<ROWS; y++) for(let x=secW; x<COLS; x++) game.board[y][x] = null;
+        game.score2 += 500;
+        return;
+      }
+    }
+    
+    if(e.key === 'ArrowLeft') useActionLocal(myPlayerNum, 'left');
+    else if(e.key === 'ArrowRight') useActionLocal(myPlayerNum, 'right');
+    else if(e.key === 'ArrowDown') useActionLocal(myPlayerNum, 'down');
+    else if(e.key === 'ArrowUp') useActionLocal(myPlayerNum, 'rotate');
+    else if(e.key === ' ') useActionLocal(myPlayerNum, 'drop');
+    else if(['b','B','и','И'].includes(e.key)) useActionLocal(myPlayerNum, 'bomb');
+    else if(['v','V','м','М'].includes(e.key)) useActionLocal(myPlayerNum, 'wind');
+    else if(['f','F','а','А'].includes(e.key)) useActionLocal(myPlayerNum, 'shield');
+    
+    if(['ArrowLeft','ArrowRight','ArrowDown','ArrowUp',' '].includes(e.key)) e.preventDefault();
+  });
+
+  console.log(`Brick Tetris v${VERSION} инициализирован успешно`);
+
+</script>
+</body>
+</html>
