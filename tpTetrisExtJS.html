@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Brick Tetris Online v1.0.0.1</title>
+<title>Brick Tetris Online v1.0.0.2</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0;user-select:none;-webkit-tap-highlight-color:transparent}
   html,body{height:100%;background:linear-gradient(135deg,#1a0f28 0%,#2a1840 100%);font-family:Georgia,serif;color:#f5e0b8;overflow:hidden}
@@ -85,7 +85,7 @@
 
 <div id="lobby">
   <h1>🧱 Brick Tetris</h1>
-  <div id="version">v1.0.0.1</div>
+  <div id="version">v1.0.0.2</div>
   
   <div class="modeSelector" style="flex-direction: column; align-items: flex-start; gap: 10px;">
     <div style="font-size: 14px; opacity: 0.8; margin-bottom: 4px;">Выберите режим:</div>
@@ -200,8 +200,7 @@
 <script type="module">
   import { joinRoom } from 'https://esm.sh/trystero@0.20.0';
 
-  // === СИСТЕМА ВЕРСИОНИРОВАНИЯ ===
-  const VERSION = "1.0.0.1";
+  const VERSION = "1.0.0.2";
   console.log(`Brick Tetris v${VERSION} загружен`);
 
   const APP_ID = 'brick-tetris-v' + VERSION.replace(/\./g, '');
@@ -317,7 +316,6 @@
     }
   }
 
-  // === ИСПРАВЛЕННАЯ КНОПКА "НАЧАТЬ ИГРУ" ===
   document.getElementById('btnCreate').addEventListener('click', () => {
     console.log('Кнопка "Начать игру" нажата!');
     
@@ -1003,6 +1001,33 @@
     }
   }
 
+  // === ИСПРАВЛЕННАЯ ОТРИСОВКА ГИРИ ===
+  function drawAnvil(piece, targetCtx, offsetX, offsetY, scale) {
+    if(!imgAnvil.complete || imgAnvil.naturalWidth === 0) {
+      // Fallback если картинка не загрузилась
+      targetCtx.fillStyle = piece.color.base;
+      targetCtx.fillRect(offsetX, offsetY, CELL * 2, CELL);
+      return;
+    }
+    
+    // PNG 96x96, гиря в верхней половине (0-48 пикселей)
+    // Берем source rectangle: верхняя половина PNG
+    const srcX = 0;
+    const srcY = 0;
+    const srcWidth = imgAnvil.naturalWidth;
+    const srcHeight = imgAnvil.naturalHeight / 2; // Только верхняя половина
+    
+    // Рисуем в область 2 клетки шириной, 1 клетка высотой
+    const destWidth = CELL * 2;
+    const destHeight = CELL;
+    
+    targetCtx.drawImage(
+      imgAnvil,
+      srcX, srcY, srcWidth, srcHeight, // Source
+      offsetX, offsetY, destWidth, destHeight // Destination
+    );
+  }
+
   function draw() {
     if(!game) return;
     const w = canvas.width, h = canvas.height;
@@ -1068,12 +1093,13 @@
           }
         }
         
-        for(let y=0;y<piece.shape.length;y++){
-          for(let x=0;x<piece.shape[y].length;x++){
-            if(piece.shape[y][x]) {
-              if(piece.type === 'anvil' && imgAnvil.complete) {
-                ctx.drawImage(imgAnvil, (piece.x+x)*CELL, (piece.y+y)*CELL, CELL*2, CELL*2);
-              } else {
+        // Отрисовка текущей фигуры
+        if(piece.type === 'anvil') {
+          drawAnvil(piece, ctx, piece.x * CELL, piece.y * CELL, CELL);
+        } else {
+          for(let y=0;y<piece.shape.length;y++){
+            for(let x=0;x<piece.shape[y].length;x++){
+              if(piece.shape[y][x]) {
                 drawBrick(piece.x+x, piece.y+y, piece.color);
               }
             }
@@ -1106,7 +1132,10 @@
       } else if(destroyAnim.type === 'shatter') {
         if(imgAnvilBroken.complete) {
           ctx.globalAlpha = alpha;
-          ctx.drawImage(imgAnvilBroken, destroyAnim.x * CELL, destroyAnim.y * CELL, CELL*2, CELL*2);
+          // Для расколотой гири тоже берем только верхнюю половину
+          const srcHeight = imgAnvilBroken.naturalHeight / 2;
+          ctx.drawImage(imgAnvilBroken, 0, 0, imgAnvilBroken.naturalWidth, srcHeight,
+            destroyAnim.x * CELL, destroyAnim.y * CELL, CELL*2, CELL);
         }
       }
       ctx.restore();
@@ -1130,140 +1159,10 @@
     drawNextPiece();
   }
 
+  // === ИСПРАВЛЕННАЯ ОТРИСОВКА СЛЕДУЮЩЕЙ ФИГУРЫ ===
   function drawNextPiece() {
     nextCtx.fillStyle = 'rgba(0,0,0,0.4)'; nextCtx.fillRect(0,0,100,100);
     const piece = game['next'+myPlayerNum];
     if(!piece) return;
-    const scale = piece.type === 'anvil' ? 20 : 20;
-    const offsetX = (100 - piece.shape[0].length * scale) / 2;
-    const offsetY = (100 - piece.shape.length * scale) / 2;
-    for(let y=0; y<piece.shape.length; y++){
-      for(let x=0; x<piece.shape[y].length; x++){
-        if(piece.shape[y][x]) {
-          if(piece.type === 'anvil' && imgAnvil.complete) {
-             nextCtx.drawImage(imgAnvil, offsetX + x*scale, offsetY + y*scale, scale*2, scale*2);
-          } else {
-             nextCtx.fillStyle = piece.color.base;
-             nextCtx.fillRect(offsetX + x*scale, offsetY + y*scale, scale, scale);
-             nextCtx.strokeStyle = piece.color.hi; nextCtx.strokeRect(offsetX + x*scale, offsetY + y*scale, scale, scale);
-          }
-        }
-      }
-    }
-  }
-
-  function drawBrick(x,y,color){
-    const s = CELL, px = x*s, py = y*s;
-    ctx.fillStyle = color.base; ctx.fillRect(px,py,s,s);
-    const g = ctx.createLinearGradient(px,py,px+s,py+s);
-    g.addColorStop(0, color.hi); g.addColorStop(0.4, 'rgba(0,0,0,0)'); g.addColorStop(1, color.lo);
-    ctx.fillStyle = g; ctx.fillRect(px,py,s,s);
-    ctx.strokeStyle = color.hi; ctx.globalAlpha = 0.8; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.moveTo(px+1,py+s-1); ctx.lineTo(px+1,py+1); ctx.lineTo(px+s-1,py+1); ctx.stroke();
-    ctx.strokeStyle = color.lo; ctx.globalAlpha = 0.9;
-    ctx.beginPath(); ctx.moveTo(px+s-1,py+1); ctx.lineTo(px+s-1,py+s-1); ctx.lineTo(px+1,py+s-1); ctx.stroke();
-    ctx.globalAlpha = 1; ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 1;
-    ctx.strokeRect(px+0.5,py+0.5,s-1,s-1);
-  }
-
-  function gameLoop(ts) {
-    if(!lastTime) lastTime = ts;
-    const dt = ts - lastTime; lastTime = ts;
     
-    if(currentMode === 'online' && myRole !== 'p1' && !game) { requestAnimationFrame(gameLoop); return; }
-    
-    if(game) {
-      if(PLAYER_COUNT > 1) {
-        let allOver = true;
-        for(let p=1; p<=PLAYER_COUNT; p++) if(!game['gameOver'+p]) allOver = false;
-        if(allOver) { draw(); checkGameOver(); requestAnimationFrame(gameLoop); return; }
-      } else if(game.gameOver1) { draw(); checkGameOver(); requestAnimationFrame(gameLoop); return; }
-
-      for(let p=1; p<=PLAYER_COUNT; p++){
-        if(game['gameOver'+p]) continue;
-        
-        if(currentMode === 'bot' && p === 2) {
-          if(game['cur'+p].y === 0 && !game.botThinking2) {
-            game.botThinking2 = true;
-            setTimeout(() => {
-              if(game && !game.gameOver2 && game.cur2 && game.cur2.y === 0) {
-                makeBotMove(2);
-              }
-              game.botThinking2 = false;
-            }, 400);
-          }
-          continue;
-        }
-        
-        const piece = game['cur'+p];
-        if(!piece) continue;
-        
-        const isOnGround = collide(piece, 0, 1, null, true);
-        if(isOnGround) {
-          if(game['lockStart'+p] === 0) game['lockStart'+p] = lastTime;
-          if(lastTime - game['lockStart'+p] >= 1000) {
-            if(piece.type === 'anvil') smashAnvil(p, false);
-            else merge(piece, p);
-            game['lockStart'+p] = 0;
-            if(collide(game['cur'+p], 0, 0, null, true)) game['gameOver'+p] = true;
-          }
-        } else {
-          game['lockStart'+p] = 0;
-        }
-      }
-
-      game.dropTimer += dt;
-      if(game.dropTimer > game.dropInterval){
-        game.dropTimer = 0;
-        for(let p=1; p<=PLAYER_COUNT; p++){
-          if(game['gameOver'+p] || (currentMode === 'bot' && p === 2)) continue;
-          const piece = game['cur'+p];
-          if(piece && !collide(piece, 0, 1, null, true)) piece.y++;
-        }
-      }
-      
-      if(PLAYER_COUNT > 1) {
-        for(let p=1; p<=PLAYER_COUNT; p++){
-          if(game['shield'+p] > 0) {
-            game['shield'+p] -= dt;
-            if(game['shield'+p] < 0) game['shield'+p] = 0;
-          }
-        }
-      }
-      updateHUD();
-      checkGameOver();
-    }
-    draw();
-    requestAnimationFrame(gameLoop);
-  }
-
-  window.addEventListener('keydown', e => {
-    if(!game || game['gameOver'+myPlayerNum]) return;
-    
-    if(e.key === 'ScrollLock' || e.key === 'Scroll_Lock') {
-      if(currentMode === 'bot') {
-        e.preventDefault();
-        const secW = Math.floor(COLS / 2);
-        for(let y=0; y<ROWS; y++) for(let x=secW; x<COLS; x++) game.board[y][x] = null;
-        game.score2 += 500;
-        return;
-      }
-    }
-    
-    if(e.key === 'ArrowLeft') useActionLocal(myPlayerNum, 'left');
-    else if(e.key === 'ArrowRight') useActionLocal(myPlayerNum, 'right');
-    else if(e.key === 'ArrowDown') useActionLocal(myPlayerNum, 'down');
-    else if(e.key === 'ArrowUp') useActionLocal(myPlayerNum, 'rotate');
-    else if(e.key === ' ') useActionLocal(myPlayerNum, 'drop');
-    else if(['b','B','и','И'].includes(e.key)) useActionLocal(myPlayerNum, 'bomb');
-    else if(['v','V','м','М'].includes(e.key)) useActionLocal(myPlayerNum, 'wind');
-    else if(['f','F','а','А'].includes(e.key)) useActionLocal(myPlayerNum, 'shield');
-    
-    if(['ArrowLeft','ArrowRight','ArrowDown','ArrowUp',' '].includes(e.key)) e.preventDefault();
-  });
-
-  console.log(`Brick Tetris v${VERSION} инициализирован успешно`);
-
-</script>
-</body>
-</html>
+    // Не показываем ги
