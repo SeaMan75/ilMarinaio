@@ -176,7 +176,7 @@
     
     <div id="hint">
         <b>Управление:</b> ← → ↓ ↑ | Пробел (сброс) | B (бомба) | V (ветер) | F (щит)<br>
-        🧨 <b>Блок 5x5</b> пробивает дыру на 3 ряда и дает 5 палок!
+        🧨 <b>Блок 5x5</b> пробивает 3 ряда вниз и даёт 5 палок!
     </div>
 </div>
 
@@ -187,7 +187,7 @@
 <script type="module">
     import { joinRoom } from 'https://esm.sh/trystero@0.20.0';
 
-    const VERSION = "1.0.0.15";
+    const VERSION = "1.0.0.16";
     const APP_ID = 'brick-tetris-v' + VERSION.replace(/\./g, '');
     
     document.title = `Brick Tetris Online v${VERSION}`;
@@ -212,7 +212,6 @@
     const P2_COLORS = ['white', 'blue'];
     const P3_COLORS = ['green', 'purple'];
 
-    // === ОБНОВЛЕНО: Убраны кресты, оставлен только Block5x5 ===
     const SHAPES = {
         I: [[[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]]],
         O: [[[1,1],[1,1]]],
@@ -439,14 +438,16 @@
         return g;
     }
 
-    // === ОБНОВЛЕНО: Проверка бонусных палок ===
+    // === ИСПРАВЛЕНО: Проверка бонусных палок ПЕРЕД всем остальным ===
     function spawnPiece(player, excludeType = null, boardRef = null) {
-        // Если есть бонусные палки — спавним I-фигуру
+        // Если есть бонусные палки — ВСЕГДА спавним I-фигуру
         if (game && game['bonusI' + player] > 0) {
             game['bonusI' + player]--;
             const sectionWidth = Math.floor(COLS / PLAYER_COUNT);
             const x = (player - 1) * sectionWidth + Math.floor((sectionWidth - 4) / 2);
-            return {type: 'I', rot:0, shape:SHAPES['I'][0], x, y:0, color:BRICK_COLORS[P1_COLORS[Math.floor(Math.random()*P1_COLORS.length)]], player};
+            const colors = player === 1 ? P1_COLORS : player === 2 ? P2_COLORS : P3_COLORS;
+            const colorName = colors[Math.floor(Math.random()*colors.length)];
+            return {type: 'I', rot:0, shape:SHAPES['I'][0], x, y:0, color:BRICK_COLORS[colorName], player};
         }
 
         let isAnvil = false;
@@ -488,6 +489,7 @@
         return {...piece, rot:newRot, shape:SHAPES[piece.type][newRot]};
     }
 
+    // === ИСПРАВЛЕНО: Block5x5 останавливается, когда под ним 3 ряда пустоты ===
     function collide(piece, dx=0, dy=0, shape=null, checkOthers=true) {
         const s = shape || piece.shape;
         const isHeavy = piece.type === 'Block5x5';
@@ -500,7 +502,28 @@
                 
                 if(nx < 0 || nx >= COLS || ny >= ROWS) return true;
                 
-                if(!isHeavy && ny >= 0 && game.board[ny][nx]) return true;
+                // Для тяжёлой фигуры — особая логика остановки
+                if(isHeavy) {
+                    // Проверяем, есть ли под фигурой 3 ряда пустоты (или до дна)
+                    let emptyRowsBelow = 0;
+                    for (let checkDy = 1; checkDy <= 3; checkDy++) {
+                        const checkY = ny + checkDy;
+                        if (checkY >= ROWS) {
+                            // Достигли дна — считаем этот ряд как "пустой"
+                            emptyRowsBelow++;
+                        } else if (checkY >= 0 && !game.board[checkY][nx]) {
+                            emptyRowsBelow++;
+                        } else {
+                            break;
+                        }
+                    }
+                    // Если под фигурой 3+ ряда пустоты — останавливаемся
+                    if (emptyRowsBelow >= 3 && dy > 0) return true;
+                    // Иначе продолжаем лететь сквозь блоки
+                    continue;
+                }
+                
+                if(ny >= 0 && game.board[ny][nx]) return true;
                 
                 if(checkOthers && PLAYER_COUNT > 1) {
                     for(let p=1; p<=PLAYER_COUNT; p++){
@@ -524,7 +547,7 @@
         return false;
     }
 
-    // === НОВОЕ: Функция бурения для Block5x5 ===
+    // === ИСПРАВЛЕНО: Бурение и взрыв с правильными бонусными палками ===
     function drillAndExplode(player) {
         const piece = game['cur'+player];
         if (!piece || piece.type !== 'Block5x5') return;
@@ -532,16 +555,11 @@
         playSound('sfxImpact');
         impactAnim = 15;
 
-        // Находим нижнюю точку фигуры
-        let bottomY = piece.y + piece.shape.length - 1;
-        
-        // Пробиваем дыру глубиной 3 ряда (или до дна)
-        for (let x = 0; x < piece.shape[0].length; x++) {
-            for (let depth = 1; depth <= 3; depth++) {
-                const drillY = bottomY + depth;
-                const drillX = piece.x + x;
-                if (drillY < ROWS && drillX >= 0 && drillX < COLS) {
-                    game.board[drillY][drillX] = null;
+        // Разрушаем блоки в зоне 5x3 ПОД фигурой
+        for (let y = piece.y + piece.shape.length; y < piece.y + piece.shape.length + 3; y++) {
+            for (let x = piece.x; x < piece.x + piece.shape[0].length; x++) {
+                if (y >= 0 && y < ROWS && x >= 0 && x < COLS) {
+                    game.board[y][x] = null;
                 }
             }
         }
@@ -557,12 +575,27 @@
             player: player 
         };
 
-        // Даем 5 бонусных палок
-        game['bonusI' + player] = 5;
-
-        // Удаляем Block5x5 и спавним новую фигуру
-        game['cur'+player] = game['next'+player];
-        game['next'+player] = spawnPiece(player, game['cur'+player].type, game.board);
+        // === ИСПРАВЛЕНО: Сразу спавним I-фигуру как текущую ===
+        const sectionWidth = Math.floor(COLS / PLAYER_COUNT);
+        const x = (player - 1) * sectionWidth + Math.floor((sectionWidth - 4) / 2);
+        const colors = player === 1 ? P1_COLORS : player === 2 ? P2_COLORS : P3_COLORS;
+        const colorName = colors[Math.floor(Math.random()*colors.length)];
+        game['cur'+player] = {
+            type: 'I',
+            rot: 0,
+            shape: SHAPES['I'][0],
+            x: x,
+            y: 0,
+            color: BRICK_COLORS[colorName],
+            player: player
+        };
+        
+        // Осталось 4 бонусные палки (следующие фигуры будут I)
+        game['bonusI' + player] = 4;
+        
+        // Следующая фигура — тоже I (из-за bonusI)
+        game['next'+player] = spawnPiece(player, 'I', game.board);
+        
         game['lockStart'+player] = 0;
     }
 
@@ -673,7 +706,6 @@
             smashAnvil(player, true);
             return;
         }
-        // === НОВОЕ: Block5x5 бурит и взрывается ===
         if (piece.type === 'Block5x5') {
             let dropped = 0;
             while(!collide(piece, 0, 1, null, true)){ piece.y++; dropped++; }
@@ -865,7 +897,12 @@
                 for(let x=0; x<simPiece.shape[y].length; x++){
                     if(simPiece.shape[y][x]) {
                         let ny = dropY + y + 1, nx = simPiece.x + x;
-                        if(ny >= ROWS || (ny >= 0 && simBoard[ny][nx])) canMove = false;
+                        // Для Block5x5 используем упрощённую проверку (он тяжёлый)
+                        if(simPiece.type === 'Block5x5') {
+                            if(ny >= ROWS) canMove = false;
+                        } else {
+                            if(ny >= ROWS || (ny >= 0 && simBoard[ny][nx])) canMove = false;
+                        }
                     }
                 }
             }
@@ -939,7 +976,8 @@
                     for(let sx=0; sx<simPiece.shape[sy].length; sx++){
                         if(simPiece.shape[sy][sx]) {
                             let nx = simPiece.x + sx, ny = simPiece.y + sy;
-                            if(nx < 0 || nx >= COLS || ny >= ROWS || (ny >= 0 && game.board[ny][nx])) isValid = false;
+                            if(nx < 0 || nx >= COLS || ny >= ROWS) isValid = false;
+                            if(piece.type !== 'Block5x5' && ny >= 0 && game.board[ny][nx]) isValid = false;
                         }
                     }
                 }
@@ -1137,7 +1175,12 @@
             if(piece && !game['gameOver'+p]) {
                 if(piece.type !== 'anvil') {
                     let ghostY = piece.y;
-                    while(!collide(piece, 0, ghostY - piece.y + 1, null, true)) ghostY++;
+                    // Для Block5x5 призрак рисуем с учётом его тяжёлой логики
+                    if (piece.type === 'Block5x5') {
+                        while(!collide(piece, 0, ghostY - piece.y + 1, null, true)) ghostY++;
+                    } else {
+                        while(!collide(piece, 0, ghostY - piece.y + 1, null, true)) ghostY++;
+                    }
                     ctx.globalAlpha = 0.15;
                     for(let y=0;y<piece.shape.length;y++){
                         for(let x=0;x<piece.shape[y].length;x++){
@@ -1260,7 +1303,6 @@
         ctx.strokeRect(px+0.5,py+0.5,s-1,s-1);
     }
 
-    // === ОБНОВЛЕНО: Block5x5 бурит при автоматическом падении ===
     function gameLoop(ts) {
         if(!lastTime) lastTime = ts;
         const dt = ts - lastTime; lastTime = ts;
@@ -1308,7 +1350,7 @@
                     if(game['lockStart'+p] === 0) game['lockStart'+p] = lastTime;
                     if(lastTime - game['lockStart'+p] >= 1000) {
                         if(piece.type === 'anvil') smashAnvil(p, false);
-                        else if(piece.type === 'Block5x5') drillAndExplode(p); // Бурение
+                        else if(piece.type === 'Block5x5') drillAndExplode(p);
                         else merge(piece, p);
                         game['lockStart'+p] = 0;
                         if(game['cur'+p] && collide(game['cur'+p], 0, 0, null, true)) game['gameOver'+p] = true;
