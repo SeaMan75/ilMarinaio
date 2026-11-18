@@ -176,7 +176,7 @@
     
     <div id="hint">
         <b>Управление:</b> ← → ↓ ↑ | Пробел (сброс) | B (бомба) | V (ветер) | F (щит)<br>
-        ⚠️ <b>Тяжелые фигуры</b> проламывают блоки при движении влево/вправо и при ударе о дно!
+        🧨 <b>Блок 5x5</b> пробивает дыру на 3 ряда и дает 5 палок!
     </div>
 </div>
 
@@ -187,7 +187,7 @@
 <script type="module">
     import { joinRoom } from 'https://esm.sh/trystero@0.20.0';
 
-    const VERSION = "1.0.0.14";
+    const VERSION = "1.0.0.15";
     const APP_ID = 'brick-tetris-v' + VERSION.replace(/\./g, '');
     
     document.title = `Brick Tetris Online v${VERSION}`;
@@ -212,7 +212,7 @@
     const P2_COLORS = ['white', 'blue'];
     const P3_COLORS = ['green', 'purple'];
 
-    // === ОБНОВЛЕНО: Новые формы монстров ===
+    // === ОБНОВЛЕНО: Убраны кресты, оставлен только Block5x5 ===
     const SHAPES = {
         I: [[[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]]],
         O: [[[1,1],[1,1]]],
@@ -221,9 +221,6 @@
         Z: [[[1,1,0],[0,1,1],[0,0,0]]],
         L: [[[0,0,1],[1,1,1],[0,0,0]]],
         J: [[[1,0,0],[1,1,1],[0,0,0]]],
-        Cross3: [[[0,1,0],[1,1,1],[0,1,0]]],
-        Cross5: [[[0,0,1,0,0],[0,0,1,0,0],[1,1,1,1,1],[0,0,1,0,0],[0,0,1,0,0]]],
-        Cross3x5: [[[0,1,0],[0,1,0],[1,1,1],[0,1,0],[0,1,0]]],
         Block5x5: [[[1,1,1,1,1],[1,1,1,1,1],[1,1,1,1,1],[1,1,1,1,1],[1,1,1,1,1]]]
     };
     
@@ -426,7 +423,8 @@
             dropTimer: 0, dropInterval: currentMode.startsWith('single') ? 800 : 700,
             gameOver1: false, gameOver2: false, gameOver3: false,
             botThinking2: false,
-            lockStart1: 0, lockStart2: 0, lockStart3: 0
+            lockStart1: 0, lockStart2: 0, lockStart3: 0,
+            bonusI1: 0, bonusI2: 0, bonusI3: 0
         };
         g.cur1 = spawnPiece(1, null, g.board);
         g.next1 = spawnPiece(1, g.cur1.type, g.board);
@@ -441,7 +439,16 @@
         return g;
     }
 
+    // === ОБНОВЛЕНО: Проверка бонусных палок ===
     function spawnPiece(player, excludeType = null, boardRef = null) {
+        // Если есть бонусные палки — спавним I-фигуру
+        if (game && game['bonusI' + player] > 0) {
+            game['bonusI' + player]--;
+            const sectionWidth = Math.floor(COLS / PLAYER_COUNT);
+            const x = (player - 1) * sectionWidth + Math.floor((sectionWidth - 4) / 2);
+            return {type: 'I', rot:0, shape:SHAPES['I'][0], x, y:0, color:BRICK_COLORS[P1_COLORS[Math.floor(Math.random()*P1_COLORS.length)]], player};
+        }
+
         let isAnvil = false;
         if (boardRef) {
             let boardFilled = 0;
@@ -483,7 +490,7 @@
 
     function collide(piece, dx=0, dy=0, shape=null, checkOthers=true) {
         const s = shape || piece.shape;
-        const isHeavy = ['Cross3', 'Cross5', 'Cross3x5', 'Block5x5'].includes(piece.type);
+        const isHeavy = piece.type === 'Block5x5';
         
         for(let y=0; y<s.length; y++){
             for(let x=0; x<s[y].length; x++){
@@ -517,52 +524,46 @@
         return false;
     }
 
-    // === ОБНОВЛЕНО: Разрушение только при движении влево/вправо ===
-    function applyCrush(piece, dx, dy) {
-        const heavyTypes = ['Cross3', 'Cross5', 'Cross3x5', 'Block5x5'];
-        if (!heavyTypes.includes(piece.type)) return;
+    // === НОВОЕ: Функция бурения для Block5x5 ===
+    function drillAndExplode(player) {
+        const piece = game['cur'+player];
+        if (!piece || piece.type !== 'Block5x5') return;
 
-        let crushDepth = 0;
-        if (piece.type === 'Cross3') crushDepth = 5;
-        else if (piece.type === 'Cross5') crushDepth = 10;
-        else if (piece.type === 'Cross3x5') crushDepth = 7;
-        else if (piece.type === 'Block5x5') crushDepth = 12;
+        playSound('sfxImpact');
+        impactAnim = 15;
 
-        for (let y = 0; y < piece.shape.length; y++) {
-            for (let x = 0; x < piece.shape[y].length; x++) {
-                if (piece.shape[y][x]) {
-                    let cy = piece.y + y + dy;
-                    let cx = piece.x + x + dx;
-                    
-                    if (cy >= 0 && cy < ROWS && cx >= 0 && cx < COLS) {
-                        game.board[cy][cx] = null;
-                    }
-
-                    if (dy > 0) {
-                        for (let i = 1; i <= crushDepth; i++) {
-                            let fy = cy + i;
-                            if (fy >= 0 && fy < ROWS && cx >= 0 && cx < COLS) {
-                                game.board[fy][cx] = null;
-                            }
-                        }
-                    } else if (dx < 0) {
-                        for (let i = 1; i <= 3; i++) {
-                            let fx = cx - i;
-                            if (cy >= 0 && cy < ROWS && fx >= 0 && fx < COLS) {
-                                game.board[cy][fx] = null;
-                            }
-                        }
-                    } else if (dx > 0) {
-                        for (let i = 1; i <= 3; i++) {
-                            let fx = cx + i;
-                            if (cy >= 0 && cy < ROWS && fx >= 0 && fx < COLS) {
-                                game.board[cy][fx] = null;
-                            }
-                        }
-                    }
+        // Находим нижнюю точку фигуры
+        let bottomY = piece.y + piece.shape.length - 1;
+        
+        // Пробиваем дыру глубиной 3 ряда (или до дна)
+        for (let x = 0; x < piece.shape[0].length; x++) {
+            for (let depth = 1; depth <= 3; depth++) {
+                const drillY = bottomY + depth;
+                const drillX = piece.x + x;
+                if (drillY < ROWS && drillX >= 0 && drillX < COLS) {
+                    game.board[drillY][drillX] = null;
                 }
             }
         }
+
+        // Анимация взрыва
+        destroyAnim = { 
+            type: 'fire', 
+            x: piece.x, 
+            y: piece.y, 
+            w: piece.shape[0].length, 
+            h: piece.shape.length, 
+            timer: 1000, 
+            player: player 
+        };
+
+        // Даем 5 бонусных палок
+        game['bonusI' + player] = 5;
+
+        // Удаляем Block5x5 и спавним новую фигуру
+        game['cur'+player] = game['next'+player];
+        game['next'+player] = spawnPiece(player, game['cur'+player].type, game.board);
+        game['lockStart'+player] = 0;
     }
 
     function removeAnvil(player) {
@@ -616,7 +617,6 @@
         }
     }
 
-    // === ОБНОВЛЕНО: Разрушение только при движении влево/вправо ===
     function tryMove(player, dx, dy) {
         const piece = game['cur'+player];
         if(!piece) return false;
@@ -638,10 +638,6 @@
             piece.x += dx; 
             piece.y += dy; 
             game['lockStart'+player] = 0;
-            // Разрушение только при движении влево/вправо
-            if (dx !== 0) {
-                applyCrush(piece, dx, dy);
-            }
             return true; 
         }
         return false;
@@ -667,7 +663,6 @@
         return false;
     }
 
-    // === ОБНОВЛЕНО: Убрано разрушение при hard drop ===
     function hardDrop(player) {
         const piece = game['cur'+player];
         if(!piece) return;
@@ -676,6 +671,14 @@
             while(!collide(piece, 0, 1, null, true)){ piece.y++; dropped++; }
             game['score'+player] += dropped * 2;
             smashAnvil(player, true);
+            return;
+        }
+        // === НОВОЕ: Block5x5 бурит и взрывается ===
+        if (piece.type === 'Block5x5') {
+            let dropped = 0;
+            while(!collide(piece, 0, 1, null, true)){ piece.y++; dropped++; }
+            game['score'+player] += dropped * 2;
+            drillAndExplode(player);
             return;
         }
         let dropped = 0;
@@ -689,16 +692,7 @@
         if(collide(game['cur'+player], 0, 0, null, true)) game['gameOver'+player] = true;
     }
 
-    // === ОБНОВЛЕНО: Разрушение происходит ЗДЕСЬ, в момент приземления ===
     function merge(piece, player) {
-        const isHeavy = ['Cross3', 'Cross5', 'Cross3x5', 'Block5x5'].includes(piece.type);
-        
-        if (isHeavy) {
-            playSound('sfxImpact');
-            impactAnim = 10;
-            applyCrush(piece, 0, 0);
-        }
-
         for(let y=0; y<piece.shape.length; y++){
             for(let x=0; x<piece.shape[y].length; x++){
                 if(piece.shape[y][x]){
@@ -841,7 +835,6 @@
         else handleCommand(player, action);
     }
 
-    // === ОБНОВЛЕНО: Убрано разрушение при нажатии вниз ===
     function handleCommand(player, action) {
         if(!game || game['gameOver'+player]) return;
         if(action === 'left') tryMove(player, -1, 0);
@@ -1267,7 +1260,7 @@
         ctx.strokeRect(px+0.5,py+0.5,s-1,s-1);
     }
 
-    // === ОБНОВЛЕНО: Убрано разрушение при автоматическом падении ===
+    // === ОБНОВЛЕНО: Block5x5 бурит при автоматическом падении ===
     function gameLoop(ts) {
         if(!lastTime) lastTime = ts;
         const dt = ts - lastTime; lastTime = ts;
@@ -1315,9 +1308,10 @@
                     if(game['lockStart'+p] === 0) game['lockStart'+p] = lastTime;
                     if(lastTime - game['lockStart'+p] >= 1000) {
                         if(piece.type === 'anvil') smashAnvil(p, false);
+                        else if(piece.type === 'Block5x5') drillAndExplode(p); // Бурение
                         else merge(piece, p);
                         game['lockStart'+p] = 0;
-                        if(collide(game['cur'+p], 0, 0, null, true)) game['gameOver'+p] = true;
+                        if(game['cur'+p] && collide(game['cur'+p], 0, 0, null, true)) game['gameOver'+p] = true;
                     }
                 } else {
                     game['lockStart'+p] = 0;
