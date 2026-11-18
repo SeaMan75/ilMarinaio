@@ -406,12 +406,15 @@
     
     <div id="hint">
         <b>Управление:</b> ← → ↓ ↑ | Пробел (сброс) | B (бомба) | V (ветер) | F (щит)<br>
-        ⚠️ <b>Тяжелые фигуры</b> разрушают блоки ПОСЛЕ касания, а их части обрушаются вниз при падении!
+        ⚠️ <b>Тяжелые фигуры</b> (Кресты, Г-образная) проламывают блоки при движении и при ударе!
     </div>
 </div>
 
+<!-- Аудио эффекты -->
 <audio id="bgMusic" loop preload="auto"><source src="assets/music.mp3" type="audio/mpeg"></audio>
 <audio id="sfxMetal" preload="auto"><source src="assets/metal_clang.mp3" type="audio/mpeg"></audio>
+<!-- НОВОЕ: Звук удара камня при приземлении тяжелой фигуры -->
+<audio id="sfxImpact" preload="auto"><source src="assets/stone_impact.mp3" type="audio/mpeg"></audio>
 
 <script type="module">
     import { joinRoom } from 'https://esm.sh/trystero@0.20.0';
@@ -479,6 +482,7 @@
     let windActive = false;
     let windTimer = 0;
     let windAnimation = null;
+    let impactAnim = 0; // НОВОЕ: Для визуальной вспышки при ударе
 
     function updateUIForMode() {
         const mode = document.querySelector('input[name="gameMode"]:checked').value;
@@ -536,6 +540,7 @@
         windActive = false;
         windTimer = 0;
         windAnimation = null;
+        impactAnim = 0;
         
         document.getElementById('lobby').style.display = 'none';
         document.getElementById('wrap').style.display = 'flex';
@@ -681,7 +686,7 @@
         if(isAnvil) {
             const sectionWidth = Math.floor(COLS / PLAYER_COUNT);
             const x = (player - 1) * sectionWidth + Math.floor((sectionWidth - 2) / 2);
-            return {type: 'anvil', rot: 0, shape: [[1,1],[1,1]], x, y: 0, color: BRICK_COLORS.anvil, player, hasTouched: false};
+            return {type: 'anvil', rot: 0, shape: [[1,1],[1,1]], x, y: 0, color: BRICK_COLORS.anvil, player};
         }
         
         const keys = Object.keys(SHAPES);
@@ -697,27 +702,13 @@
         const width = SHAPES[type][0][0].length;
         const sectionWidth = Math.floor(COLS / PLAYER_COUNT);
         const x = (player - 1) * sectionWidth + Math.floor((sectionWidth - width) / 2);
-        return {type, rot:0, shape:SHAPES[type][0], x, y:0, color:BRICK_COLORS[colorName], player, hasTouched: false};
+        return {type, rot:0, shape:SHAPES[type][0], x, y:0, color:BRICK_COLORS[colorName], player};
     }
 
     function rotate(piece, dir=1) {
         if(piece.type === 'anvil') return piece;
         const newRot = (piece.rot - dir + 4) % 4;
         return {...piece, rot:newRot, shape:SHAPES[piece.type][newRot]};
-    }
-
-    function willHitBoard(piece, dx, dy) {
-        const s = piece.shape;
-        for(let y=0; y<s.length; y++){
-            for(let x=0; x<s[y].length; x++){
-                if(!s[y][x]) continue;
-                const nx = piece.x + x + dx;
-                const ny = piece.y + y + dy;
-                if(ny >= ROWS) return true;
-                if(ny >= 0 && game.board[ny][nx]) return true;
-            }
-        }
-        return false;
     }
 
     function collide(piece, dx=0, dy=0, shape=null, checkOthers=true) {
@@ -732,6 +723,7 @@
                 
                 if(nx < 0 || nx >= COLS || ny >= ROWS) return true;
                 
+                // Тяжелые фигуры игнорируют блоки на поле, их держит только дно/стены
                 if(!isHeavy && ny >= 0 && game.board[ny][nx]) return true;
                 
                 if(checkOthers && PLAYER_COUNT > 1) {
@@ -756,33 +748,9 @@
         return false;
     }
 
-    // === СУПЕР-ФИЧА: Внутренняя гравитация тяжелых фигур ===
-    function applyInternalGravity(piece) {
-        const heavyTypes = ['Cross3', 'BigL', 'Cross5'];
-        if (!heavyTypes.includes(piece.type)) return;
-
-        let changed = true;
-        while (changed) {
-            changed = false;
-            const s = piece.shape;
-            const height = s.length;
-            const width = s[0].length;
-
-            for (let y = height - 2; y >= 0; y--) {
-                for (let x = 0; x < width; x++) {
-                    if (s[y][x] === 1 && s[y+1][x] === 0) {
-                        s[y][x] = 0;
-                        s[y+1][x] = 1;
-                        changed = true;
-                    }
-                }
-            }
-        }
-    }
-
     function applyCrush(piece, dx, dy) {
         const heavyTypes = ['Cross3', 'BigL', 'Cross5'];
-        if (!heavyTypes.includes(piece.type) || !piece.hasTouched) return;
+        if (!heavyTypes.includes(piece.type)) return;
 
         let crushDepth = 0;
         if (piece.type === 'Cross3') crushDepth = 5;
@@ -936,13 +904,8 @@
         }
         let dropped = 0;
         while(!collide(piece, 0, 1, null, true)){ 
-            const heavyTypes = ['Cross3', 'BigL', 'Cross5'];
-            if (heavyTypes.includes(piece.type) && !piece.hasTouched && willHitBoard(piece, 0, 1)) {
-                piece.hasTouched = true;
-            }
             piece.y++; 
-            applyInternalGravity(piece);
-            if (piece.hasTouched) applyCrush(piece, 0, 1);
+            applyCrush(piece, 0, 1);
             dropped++; 
         }
         game['score'+player] += dropped * 2;
@@ -951,9 +914,21 @@
         if(collide(game['cur'+player], 0, 0, null, true)) game['gameOver'+player] = true;
     }
 
+    // === ИЗМЕНЕНО: Трансформация и удар происходят ЗДЕСЬ, в момент фиксации ===
     function merge(piece, player) {
-        for(let y=0;y<piece.shape.length;y++){
-            for(let x=0;x<piece.shape[y].length;x++){
+        const isHeavy = ['Cross3', 'BigL', 'Cross5'].includes(piece.type);
+        
+        if (isHeavy) {
+            // 1. Звук удара камня в момент приземления
+            playSound('sfxImpact');
+            // 2. Визуальная вспышка на 10 кадров
+            impactAnim = 10;
+            // 3. Финальный "взрыв" при приземлении для максимального эффекта
+            applyCrush(piece, 0, 0);
+        }
+
+        for(let y=0; y<piece.shape.length; y++){
+            for(let x=0; x<piece.shape[y].length; x++){
                 if(piece.shape[y][x]){
                     const by = piece.y+y, bx = piece.x+x;
                     if(by<0){ game['gameOver'+player] = true; return; }
@@ -1101,13 +1076,8 @@
         else if(action === 'down') {
             const piece = game['cur'+player];
             if(piece && !collide(piece, 0, 1, null, true)) { 
-                const heavyTypes = ['Cross3', 'BigL', 'Cross5'];
-                if (heavyTypes.includes(piece.type) && !piece.hasTouched && willHitBoard(piece, 0, 1)) {
-                    piece.hasTouched = true;
-                }
                 piece.y++; 
-                applyInternalGravity(piece);
-                if (piece.hasTouched) applyCrush(piece, 0, 1);
+                applyCrush(piece, 0, 1);
                 game['score'+player]++; 
                 game['lockStart'+player] = 0;
             }
@@ -1362,6 +1332,13 @@
         const w = canvas.width, h = canvas.height;
         ctx.fillStyle = '#1a1008'; ctx.fillRect(0,0,w,h);
         
+        // НОВОЕ: Визуальная вспышка при ударе тяжелой фигуры
+        if (impactAnim > 0) {
+            ctx.fillStyle = `rgba(255, 255, 255, ${impactAnim / 15})`;
+            ctx.fillRect(0, 0, w, h);
+            impactAnim--;
+        }
+        
         ctx.strokeStyle = 'rgba(255,200,120,0.05)'; ctx.lineWidth = 1;
         for(let x=1;x<COLS;x++){ ctx.beginPath(); ctx.moveTo(x*CELL,0); ctx.lineTo(x*CELL,h); ctx.stroke(); }
         for(let y=1;y<ROWS;y++){ ctx.beginPath(); ctx.moveTo(0,y*CELL); ctx.lineTo(w,y*CELL); ctx.stroke(); }
@@ -1566,7 +1543,7 @@
                     if(game['lockStart'+p] === 0) game['lockStart'+p] = lastTime;
                     if(lastTime - game['lockStart'+p] >= 1000) {
                         if(piece.type === 'anvil') smashAnvil(p, false);
-                        else merge(piece, p);
+                        else merge(piece, p); // ЗВУК И ВСПЫШКА ПРОИЗОЙДУТ ЗДЕСЬ
                         game['lockStart'+p] = 0;
                         if(collide(game['cur'+p], 0, 0, null, true)) game['gameOver'+p] = true;
                     }
@@ -1583,13 +1560,8 @@
                     if(game['gameOver'+p] || (currentMode === 'bot' && p === 2)) continue;
                     const piece = game['cur'+p];
                     if(piece && !collide(piece, 0, 1, null, true)) {
-                        const heavyTypes = ['Cross3', 'BigL', 'Cross5'];
-                        if (heavyTypes.includes(piece.type) && !piece.hasTouched && willHitBoard(piece, 0, 1)) {
-                            piece.hasTouched = true;
-                        }
                         piece.y++;
-                        applyInternalGravity(piece);
-                        if (piece.hasTouched) applyCrush(piece, 0, 1);
+                        applyCrush(piece, 0, 1);
                     }
                 }
             }
