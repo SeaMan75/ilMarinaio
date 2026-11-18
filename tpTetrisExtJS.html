@@ -176,7 +176,7 @@
     
     <div id="hint">
         <b>Управление:</b> ← → ↓ ↑ | Пробел (сброс) | B (бомба) | V (ветер) | F (щит)<br>
-        🧨 <b>Блок 5x5</b> пробивает 3 ряда вниз и даёт 5 палок!
+        🧨 <b>Блок 5x5</b> пробивает 7 рядов вниз и даёт 5 палок!
     </div>
 </div>
 
@@ -187,7 +187,7 @@
 <script type="module">
     import { joinRoom } from 'https://esm.sh/trystero@0.20.0';
 
-    const VERSION = "1.0.0.16";
+    const VERSION = "1.0.0.17";
     const APP_ID = 'brick-tetris-v' + VERSION.replace(/\./g, '');
     
     document.title = `Brick Tetris Online v${VERSION}`;
@@ -438,7 +438,7 @@
         return g;
     }
 
-    // === ИСПРАВЛЕНО: Проверка бонусных палок ПЕРЕД всем остальным ===
+    // === ИСПРАВЛЕНО: Бонусные палки имеют приоритет над excludeType ===
     function spawnPiece(player, excludeType = null, boardRef = null) {
         // Если есть бонусные палки — ВСЕГДА спавним I-фигуру
         if (game && game['bonusI' + player] > 0) {
@@ -489,7 +489,7 @@
         return {...piece, rot:newRot, shape:SHAPES[piece.type][newRot]};
     }
 
-    // === ИСПРАВЛЕНО: Block5x5 останавливается, когда под ним 3 ряда пустоты ===
+    // === ИСПРАВЛЕНО: Block5x5 летит сквозь блоки, останавливается на дне ===
     function collide(piece, dx=0, dy=0, shape=null, checkOthers=true) {
         const s = shape || piece.shape;
         const isHeavy = piece.type === 'Block5x5';
@@ -502,25 +502,26 @@
                 
                 if(nx < 0 || nx >= COLS || ny >= ROWS) return true;
                 
-                // Для тяжёлой фигуры — особая логика остановки
+                // Для тяжёлой фигуры — игнорируем блоки на поле, останавливаемся только на дне
                 if(isHeavy) {
-                    // Проверяем, есть ли под фигурой 3 ряда пустоты (или до дна)
-                    let emptyRowsBelow = 0;
-                    for (let checkDy = 1; checkDy <= 3; checkDy++) {
-                        const checkY = ny + checkDy;
-                        if (checkY >= ROWS) {
-                            // Достигли дна — считаем этот ряд как "пустой"
-                            emptyRowsBelow++;
-                        } else if (checkY >= 0 && !game.board[checkY][nx]) {
-                            emptyRowsBelow++;
-                        } else {
-                            break;
+                    if(checkOthers && PLAYER_COUNT > 1) {
+                        for(let p=1; p<=PLAYER_COUNT; p++){
+                            if(p === piece.player) continue;
+                            const sectionWidth = Math.floor(COLS / PLAYER_COUNT);
+                            const shieldStart = (p - 1) * sectionWidth;
+                            const shieldEnd = p * sectionWidth;
+                            if(game['shield' + p] > 0 && nx >= shieldStart && nx < shieldEnd) return true;
+
+                            const other = game['cur'+p];
+                            if(!other) continue;
+                            const canOtherMoveDown = !collide(other, 0, 1, null, false);
+                            if(!canOtherMoveDown){
+                                const lx = nx - other.x, ly = ny - other.y;
+                                if(lx>=0 && ly>=0 && ly<other.shape.length && lx<other.shape[0].length && other.shape[ly][lx] === 1) return true;
+                            }
                         }
                     }
-                    // Если под фигурой 3+ ряда пустоты — останавливаемся
-                    if (emptyRowsBelow >= 3 && dy > 0) return true;
-                    // Иначе продолжаем лететь сквозь блоки
-                    continue;
+                    continue; // Игнорируем game.board для тяжёлых фигур
                 }
                 
                 if(ny >= 0 && game.board[ny][nx]) return true;
@@ -547,7 +548,7 @@
         return false;
     }
 
-    // === ИСПРАВЛЕНО: Бурение и взрыв с правильными бонусными палками ===
+    // === ИСПРАВЛЕНО: Разрушение на 7 рядов вниз, палки спавнятся сразу ===
     function drillAndExplode(player) {
         const piece = game['cur'+player];
         if (!piece || piece.type !== 'Block5x5') return;
@@ -555,8 +556,8 @@
         playSound('sfxImpact');
         impactAnim = 15;
 
-        // Разрушаем блоки в зоне 5x3 ПОД фигурой
-        for (let y = piece.y + piece.shape.length; y < piece.y + piece.shape.length + 3; y++) {
+        // Разрушаем блоки в зоне 5x7 ПОД фигурой (глубже, чтобы захватить блоки)
+        for (let y = piece.y + piece.shape.length; y < piece.y + piece.shape.length + 7; y++) {
             for (let x = piece.x; x < piece.x + piece.shape[0].length; x++) {
                 if (y >= 0 && y < ROWS && x >= 0 && x < COLS) {
                     game.board[y][x] = null;
@@ -575,27 +576,12 @@
             player: player 
         };
 
-        // === ИСПРАВЛЕНО: Сразу спавним I-фигуру как текущую ===
-        const sectionWidth = Math.floor(COLS / PLAYER_COUNT);
-        const x = (player - 1) * sectionWidth + Math.floor((sectionWidth - 4) / 2);
-        const colors = player === 1 ? P1_COLORS : player === 2 ? P2_COLORS : P3_COLORS;
-        const colorName = colors[Math.floor(Math.random()*colors.length)];
-        game['cur'+player] = {
-            type: 'I',
-            rot: 0,
-            shape: SHAPES['I'][0],
-            x: x,
-            y: 0,
-            color: BRICK_COLORS[colorName],
-            player: player
-        };
+        // === ИСПРАВЛЕНО: Устанавливаем bonusI = 5, и spawnPiece создаст I-палки ===
+        game['bonusI' + player] = 5;
         
-        // Осталось 4 бонусные палки (следующие фигуры будут I)
-        game['bonusI' + player] = 4;
-        
-        // Следующая фигура — тоже I (из-за bonusI)
-        game['next'+player] = spawnPiece(player, 'I', game.board);
-        
+        // Удаляем Block5x5 и спавним следующую фигуру (которая будет I-палкой из-за bonusI)
+        game['cur'+player] = game['next'+player];
+        game['next'+player] = spawnPiece(player, game['cur'+player]?.type, game.board);
         game['lockStart'+player] = 0;
     }
 
@@ -897,12 +883,7 @@
                 for(let x=0; x<simPiece.shape[y].length; x++){
                     if(simPiece.shape[y][x]) {
                         let ny = dropY + y + 1, nx = simPiece.x + x;
-                        // Для Block5x5 используем упрощённую проверку (он тяжёлый)
-                        if(simPiece.type === 'Block5x5') {
-                            if(ny >= ROWS) canMove = false;
-                        } else {
-                            if(ny >= ROWS || (ny >= 0 && simBoard[ny][nx])) canMove = false;
-                        }
+                        if(ny >= ROWS || (ny >= 0 && simBoard[ny][nx])) canMove = false;
                     }
                 }
             }
@@ -1175,12 +1156,7 @@
             if(piece && !game['gameOver'+p]) {
                 if(piece.type !== 'anvil') {
                     let ghostY = piece.y;
-                    // Для Block5x5 призрак рисуем с учётом его тяжёлой логики
-                    if (piece.type === 'Block5x5') {
-                        while(!collide(piece, 0, ghostY - piece.y + 1, null, true)) ghostY++;
-                    } else {
-                        while(!collide(piece, 0, ghostY - piece.y + 1, null, true)) ghostY++;
-                    }
+                    while(!collide(piece, 0, ghostY - piece.y + 1, null, true)) ghostY++;
                     ctx.globalAlpha = 0.15;
                     for(let y=0;y<piece.shape.length;y++){
                         for(let x=0;x<piece.shape[y].length;x++){
