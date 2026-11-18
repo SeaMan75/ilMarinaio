@@ -406,7 +406,7 @@
     
     <div id="hint">
         <b>Управление:</b> ← → ↓ ↑ | Пробел (сброс) | B (бомба) | V (ветер) | F (щит)<br>
-        ⚠️ <b>Тяжелые фигуры</b> (Кресты, Г-образная) проламывают блоки при движении!
+        ⚠️ <b>Тяжелые фигуры</b> разрушают блоки ПОСЛЕ касания, а их части обрушаются вниз при падении!
     </div>
 </div>
 
@@ -416,7 +416,7 @@
 <script type="module">
     import { joinRoom } from 'https://esm.sh/trystero@0.20.0';
 
-    const VERSION = "1.0.0.12";
+    const VERSION = "1.0.0.13";
     const APP_ID = 'brick-tetris-v' + VERSION.replace(/\./g, '');
     
     document.title = `Brick Tetris Online v${VERSION}`;
@@ -441,7 +441,6 @@
     const P2_COLORS = ['white', 'blue'];
     const P3_COLORS = ['green', 'purple'];
 
-    // === НОВЫЕ ТЯЖЕЛЫЕ ФИГУРЫ ===
     const SHAPES = {
         I: [[[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]]],
         O: [[[1,1],[1,1]]],
@@ -450,9 +449,9 @@
         Z: [[[1,1,0],[0,1,1],[0,0,0]]],
         L: [[[0,0,1],[1,1,1],[0,0,0]]],
         J: [[[1,0,0],[1,1,1],[0,0,0]]],
-        Cross3: [[[0,1,0],[1,1,1],[0,1,0]]],       // 3x3, ломает на 5 рядов
-        BigL: [[[1,0,0,0],[1,0,0,0],[1,0,0,0],[1,1,1,1]]], // 4x4, ломает на 8 рядов
-        Cross5: [[[0,0,1,0,0],[0,0,1,0,0],[1,1,1,1,1],[0,0,1,0,0],[0,0,1,0,0]]] // 5x5, ломает на 10 рядов
+        Cross3: [[[0,1,0],[1,1,1],[0,1,0]]],
+        BigL: [[[1,0,0,0],[1,0,0,0],[1,0,0,0],[1,1,1,1]]],
+        Cross5: [[[0,0,1,0,0],[0,0,1,0,0],[1,1,1,1,1],[0,0,1,0,0],[0,0,1,0,0]]]
     };
     
     for(const k in SHAPES){
@@ -682,7 +681,7 @@
         if(isAnvil) {
             const sectionWidth = Math.floor(COLS / PLAYER_COUNT);
             const x = (player - 1) * sectionWidth + Math.floor((sectionWidth - 2) / 2);
-            return {type: 'anvil', rot: 0, shape: [[1,1],[1,1]], x, y: 0, color: BRICK_COLORS.anvil, player};
+            return {type: 'anvil', rot: 0, shape: [[1,1],[1,1]], x, y: 0, color: BRICK_COLORS.anvil, player, hasTouched: false};
         }
         
         const keys = Object.keys(SHAPES);
@@ -698,7 +697,7 @@
         const width = SHAPES[type][0][0].length;
         const sectionWidth = Math.floor(COLS / PLAYER_COUNT);
         const x = (player - 1) * sectionWidth + Math.floor((sectionWidth - width) / 2);
-        return {type, rot:0, shape:SHAPES[type][0], x, y:0, color:BRICK_COLORS[colorName], player};
+        return {type, rot:0, shape:SHAPES[type][0], x, y:0, color:BRICK_COLORS[colorName], player, hasTouched: false};
     }
 
     function rotate(piece, dir=1) {
@@ -707,7 +706,20 @@
         return {...piece, rot:newRot, shape:SHAPES[piece.type][newRot]};
     }
 
-    // === ИЗМЕНЕНО: Тяжелые фигуры игнорируют коллизии с доской ===
+    function willHitBoard(piece, dx, dy) {
+        const s = piece.shape;
+        for(let y=0; y<s.length; y++){
+            for(let x=0; x<s[y].length; x++){
+                if(!s[y][x]) continue;
+                const nx = piece.x + x + dx;
+                const ny = piece.y + y + dy;
+                if(ny >= ROWS) return true;
+                if(ny >= 0 && game.board[ny][nx]) return true;
+            }
+        }
+        return false;
+    }
+
     function collide(piece, dx=0, dy=0, shape=null, checkOthers=true) {
         const s = shape || piece.shape;
         const isHeavy = ['Cross3', 'BigL', 'Cross5'].includes(piece.type);
@@ -718,10 +730,8 @@
                 const nx = piece.x + x + dx;
                 const ny = piece.y + y + dy;
                 
-                // Стены и дно останавливают ВСЕХ
                 if(nx < 0 || nx >= COLS || ny >= ROWS) return true;
                 
-                // Обычные фигуры сталкиваются с доской, тяжелые - пролетают сквозь неё
                 if(!isHeavy && ny >= 0 && game.board[ny][nx]) return true;
                 
                 if(checkOthers && PLAYER_COUNT > 1) {
@@ -746,10 +756,33 @@
         return false;
     }
 
-    // === НОВОЕ: Функция разрушения блоков тяжелыми фигурами ===
-    function applyCrush(piece, dx, dy) {
+    // === СУПЕР-ФИЧА: Внутренняя гравитация тяжелых фигур ===
+    function applyInternalGravity(piece) {
         const heavyTypes = ['Cross3', 'BigL', 'Cross5'];
         if (!heavyTypes.includes(piece.type)) return;
+
+        let changed = true;
+        while (changed) {
+            changed = false;
+            const s = piece.shape;
+            const height = s.length;
+            const width = s[0].length;
+
+            for (let y = height - 2; y >= 0; y--) {
+                for (let x = 0; x < width; x++) {
+                    if (s[y][x] === 1 && s[y+1][x] === 0) {
+                        s[y][x] = 0;
+                        s[y+1][x] = 1;
+                        changed = true;
+                    }
+                }
+            }
+        }
+    }
+
+    function applyCrush(piece, dx, dy) {
+        const heavyTypes = ['Cross3', 'BigL', 'Cross5'];
+        if (!heavyTypes.includes(piece.type) || !piece.hasTouched) return;
 
         let crushDepth = 0;
         if (piece.type === 'Cross3') crushDepth = 5;
@@ -762,14 +795,11 @@
                     let cy = piece.y + y + dy;
                     let cx = piece.x + x + dx;
                     
-                    // Уничтожаем блок, в который входит фигура
                     if (cy >= 0 && cy < ROWS && cx >= 0 && cx < COLS) {
                         game.board[cy][cx] = null;
                     }
 
-                    // Применяем направленное разрушение
                     if (dy > 0) {
-                        // Ломаем вниз на заданную глубину
                         for (let i = 1; i <= crushDepth; i++) {
                             let fy = cy + i;
                             if (fy >= 0 && fy < ROWS && cx >= 0 && cx < COLS) {
@@ -777,7 +807,6 @@
                             }
                         }
                     } else if (dx < 0) {
-                        // Ломаем влево на 3 блока
                         for (let i = 1; i <= 3; i++) {
                             let fx = cx - i;
                             if (cy >= 0 && cy < ROWS && fx >= 0 && fx < COLS) {
@@ -785,7 +814,6 @@
                             }
                         }
                     } else if (dx > 0) {
-                        // Ломаем вправо на 3 блока
                         for (let i = 1; i <= 3; i++) {
                             let fx = cx + i;
                             if (cy >= 0 && cy < ROWS && fx >= 0 && fx < COLS) {
@@ -870,7 +898,7 @@
             piece.x += dx; 
             piece.y += dy; 
             game['lockStart'+player] = 0;
-            applyCrush(piece, dx, dy); // Вызываем разрушение при успешном движении
+            applyCrush(piece, dx, dy);
             return true; 
         }
         return false;
@@ -908,8 +936,13 @@
         }
         let dropped = 0;
         while(!collide(piece, 0, 1, null, true)){ 
+            const heavyTypes = ['Cross3', 'BigL', 'Cross5'];
+            if (heavyTypes.includes(piece.type) && !piece.hasTouched && willHitBoard(piece, 0, 1)) {
+                piece.hasTouched = true;
+            }
             piece.y++; 
-            applyCrush(piece, 0, 1); // Разрушаем при жестком падении
+            applyInternalGravity(piece);
+            if (piece.hasTouched) applyCrush(piece, 0, 1);
             dropped++; 
         }
         game['score'+player] += dropped * 2;
@@ -1068,8 +1101,13 @@
         else if(action === 'down') {
             const piece = game['cur'+player];
             if(piece && !collide(piece, 0, 1, null, true)) { 
+                const heavyTypes = ['Cross3', 'BigL', 'Cross5'];
+                if (heavyTypes.includes(piece.type) && !piece.hasTouched && willHitBoard(piece, 0, 1)) {
+                    piece.hasTouched = true;
+                }
                 piece.y++; 
-                applyCrush(piece, 0, 1); // Разрушаем при мягком падении
+                applyInternalGravity(piece);
+                if (piece.hasTouched) applyCrush(piece, 0, 1);
                 game['score'+player]++; 
                 game['lockStart'+player] = 0;
             }
@@ -1545,8 +1583,13 @@
                     if(game['gameOver'+p] || (currentMode === 'bot' && p === 2)) continue;
                     const piece = game['cur'+p];
                     if(piece && !collide(piece, 0, 1, null, true)) {
+                        const heavyTypes = ['Cross3', 'BigL', 'Cross5'];
+                        if (heavyTypes.includes(piece.type) && !piece.hasTouched && willHitBoard(piece, 0, 1)) {
+                            piece.hasTouched = true;
+                        }
                         piece.y++;
-                        applyCrush(piece, 0, 1); // Разрушаем при автоматическом падении
+                        applyInternalGravity(piece);
+                        if (piece.hasTouched) applyCrush(piece, 0, 1);
                     }
                 }
             }
