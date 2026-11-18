@@ -5,155 +5,27 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Brick Tetris Online</title>
 <style>
-    * {
-        box-sizing: border-box;
-        margin: 0;
-        padding: 0;
-        user-select: none;
-        -webkit-tap-highlight-color: transparent;
-    }
-    html, body {
-        height: 100%;
-        background: linear-gradient(135deg, #1a0f28 0%, #2a1840 100%);
-        font-family: Georgia, serif;
-        color: #f5e0b8;
-        overflow: hidden;
-    }
-    #wrap {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        height: 100%;
-        padding: 8px;
-        gap: 6px;
-    }
-    #lobby {
-        position: fixed;
-        inset: 0;
-        background: rgba(0, 0, 0, 0.95);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        flex-direction: column;
-        gap: 16px;
-        z-index: 100;
-        padding: 20px;
-    }
-    #lobby h1 {
-        color: #ffd27a;
-        font-size: 28px;
-        text-shadow: 0 0 20px rgba(255, 210, 122, 0.5);
-        text-align: center;
-    }
-    #version {
-        font-size: 18px;
-        color: #ffd27a;
-        margin-top: -8px;
-        font-weight: bold;
-        letter-spacing: 2px;
-        text-shadow: 0 0 10px rgba(255, 210, 122, 0.3);
-    }
-    .lobbyBtn {
-        background: linear-gradient(180deg, #6b3a1e, #4a2512);
-        color: #fff;
-        border: 2px solid #c88a4a;
-        border-radius: 10px;
-        padding: 14px 28px;
-        font-size: 17px;
-        cursor: pointer;
-        box-shadow: 0 4px 0 #2a1208;
-        font-weight: bold;
-    }
-    .lobbyBtn:active {
-        transform: translateY(3px);
-        box-shadow: 0 1px 0 #2a1208;
-    }
-    .lobbyBtn:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-    }
-    #roomCode {
-        font-size: 32px;
-        color: #ffd27a;
-        background: rgba(0, 0, 0, 0.5);
-        padding: 12px 24px;
-        border-radius: 8px;
-        border: 2px solid #6b4a2a;
-        letter-spacing: 4px;
-        font-weight: bold;
-        user-select: all;
-    }
-    #joinInput {
-        font-size: 20px;
-        padding: 10px;
-        border-radius: 6px;
-        border: 2px solid #6b4a2a;
-        background: #1a0f28;
-        color: #f5e0b8;
-        text-align: center;
-        letter-spacing: 3px;
-        text-transform: uppercase;
-        width: 200px;
-    }
-    .status {
-        font-size: 15px;
-        opacity: 0.9;
-        padding: 8px 16px;
-        background: rgba(0, 0, 0, 0.4);
-        border-radius: 6px;
-        max-width: 90vw;
-        text-align: center;
-    }
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-tap-highlight-color: transparent; }
+    html, body { height: 100%; background: linear-gradient(135deg, #1a0f28 0%, #2a1840 100%); font-family: Georgia, serif; color: #f5e0b8; overflow: hidden; }
+    #wrap { display: flex; flex-direction: column; align-items: center; height: 100%; padding: 8px; gap: 6px; }
+    #lobby { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.95); display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px; z-index: 100; padding: 20px; }
+    #lobby h1 { color: #ffd27a; font-size: 28px; text-shadow: 0 0 20px rgba(255, 210, 122, 0.5); text-align: center; }
+    #version { font-size: 18px; color: #ffd27a; margin-top: -8px; font-weight: bold; letter-spacing: 2px; text-shadow: 0 0 10px rgba(255, 210, 122, 0.3); }
+    .lobbyBtn { background: linear-gradient(180deg, #6b3a1e, #4a2512); color: #fff; border: 2px solid #c88a4a; border-radius: 10px; padding: 14px 28px; font-size: 17px; cursor: pointer; box-shadow: 0 4px 0 #2a1208; font-weight: bold; }
+    .lobbyBtn:active { transform: translateY(3px); box-shadow: 0 1px 0 #2a1208; }
+    .lobbyBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+    #roomCode { font-size: 32px; color: #ffd27a; background: rgba(0, 0, 0, 0.5); padding: 12px 24px; border-radius: 8px; border: 2px solid #6b4a2a; letter-spacing: 4px; font-weight: bold; user-select: all; }
+    #joinInput { font-size: 20px; padding: 10px; border-radius: 6px; border: 2px solid #6b4a2a; background: #1a0f28; color: #f5e0b8; text-align: center; letter-spacing: 3px; text-transform: uppercase; width: 200px; }
+    .status { font-size: 15px; opacity: 0.9; padding: 8px 16px; background: rgba(0, 0, 0, 0.4); border-radius: 6px; max-width: 90vw; text-align: center; }
     .status.ok { color: #6ac06a; }
     .status.err { color: #ff6a6a; }
     .status.info { color: #8ab0ff; }
-
-    .modeSelector {
-        display: flex;
-        gap: 20px;
-        align-items: center;
-        margin: 15px 0;
-        background: rgba(0, 0, 0, 0.3);
-        padding: 10px 20px;
-        border-radius: 8px;
-    }
-    .modeSelector label {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        cursor: pointer;
-        font-size: 15px;
-    }
-    .modeSelector input[type="radio"],
-    .modeSelector input[type="checkbox"] {
-        width: 18px;
-        height: 18px;
-        cursor: pointer;
-    }
-    .modeSelector input:disabled {
-        cursor: not-allowed;
-        opacity: 0.6;
-    }
-
-    #hud {
-        display: flex;
-        justify-content: space-between;
-        width: 100%;
-        max-width: 900px;
-        gap: 8px;
-        flex-wrap: wrap;
-    }
-    .playerStats {
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-        padding: 6px 10px;
-        background: rgba(0, 0, 0, 0.4);
-        border-radius: 8px;
-        font-size: 12px;
-        flex: 1;
-        min-width: 120px;
-    }
+    .modeSelector { display: flex; gap: 20px; align-items: center; margin: 15px 0; background: rgba(0, 0, 0, 0.3); padding: 10px 20px; border-radius: 8px; }
+    .modeSelector label { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 15px; }
+    .modeSelector input[type="radio"], .modeSelector input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; }
+    .modeSelector input:disabled { cursor: not-allowed; opacity: 0.6; }
+    #hud { display: flex; justify-content: space-between; width: 100%; max-width: 900px; gap: 8px; flex-wrap: wrap; }
+    .playerStats { display: flex; flex-direction: column; gap: 2px; padding: 6px 10px; background: rgba(0, 0, 0, 0.4); border-radius: 8px; font-size: 12px; flex: 1; min-width: 120px; }
     .playerStats.p1 { border-left: 3px solid #ff6a6a; }
     .playerStats.p2 { border-right: 3px solid #6ab0ff; text-align: right; }
     .playerStats.p3 { border-left: 3px solid #6ac06a; text-align: center; }
@@ -162,78 +34,19 @@
     .playerStats.p2 h4 { color: #8ab0ff; }
     .playerStats.p3 h4 { color: #6ac06a; }
     .playerStats b { color: #ffd27a; font-size: 16px; }
-
     #gameArea { display: flex; gap: 15px; align-items: flex-start; }
     #gameContainer { position: relative; display: flex; justify-content: center; }
-    #game {
-        background: #000;
-        border: 4px solid #8b5a2b;
-        border-radius: 6px;
-        box-shadow: 0 0 20px rgba(255, 180, 80, 0.3);
-        max-width: 100%;
-        height: auto;
-        transition: background 0.5s;
-    }
-    #game.wind-active {
-        background: linear-gradient(180deg, #1a2840 0%, #0f1a28 100%);
-        box-shadow: 0 0 30px rgba(100, 200, 255, 0.5);
-    }
-    #nextBox {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 6px;
-        background: rgba(60, 35, 20, 0.8);
-        padding: 10px;
-        border-radius: 8px;
-        border: 2px solid #8b5a2b;
-    }
+    #game { background: #000; border: 4px solid #8b5a2b; border-radius: 6px; box-shadow: 0 0 20px rgba(255, 180, 80, 0.3); max-width: 100%; height: auto; transition: background 0.5s; }
+    #game.wind-active { background: linear-gradient(180deg, #1a2840 0%, #0f1a28 100%); box-shadow: 0 0 30px rgba(100, 200, 255, 0.5); }
+    #nextBox { display: flex; flex-direction: column; align-items: center; gap: 6px; background: rgba(60, 35, 20, 0.8); padding: 10px; border-radius: 8px; border: 2px solid #8b5a2b; }
     #nextBox span { font-size: 13px; color: #ffd27a; }
-    #nextPieceCanvas {
-        background: rgba(0, 0, 0, 0.4);
-        border-radius: 4px;
-        border: 1px solid #6b4a2a;
-    }
-
-    #gameOverOverlay {
-        position: absolute;
-        inset: 0;
-        background: rgba(0, 0, 0, 0.9);
-        display: none;
-        align-items: center;
-        justify-content: center;
-        flex-direction: column;
-        gap: 12px;
-        border-radius: 4px;
-        z-index: 5;
-        padding: 20px;
-        overflow-y: auto;
-    }
+    #nextPieceCanvas { background: rgba(0, 0, 0, 0.4); border-radius: 4px; border: 1px solid #6b4a2a; }
+    #gameOverOverlay { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.9); display: none; align-items: center; justify-content: center; flex-direction: column; gap: 12px; border-radius: 4px; z-index: 5; padding: 20px; overflow-y: auto; }
     #gameOverOverlay h2 { color: #ff6a3d; font-size: 28px; text-shadow: 2px 2px 0 #000; }
     #gameOverOverlay .winner { color: #ffd27a; font-size: 20px; font-weight: bold; }
-
-    #nameInputSection {
-        display: none;
-        flex-direction: column;
-        align-items: center;
-        gap: 10px;
-        margin: 15px 0;
-        width: 100%;
-        max-width: 300px;
-    }
-    #playerNameInput {
-        width: 100%;
-        padding: 10px;
-        border-radius: 6px;
-        border: 2px solid #c88a4a;
-        background: #1a0f28;
-        color: #f5e0b8;
-        text-align: center;
-        font-size: 16px;
-        font-family: Georgia, serif;
-    }
+    #nameInputSection { display: none; flex-direction: column; align-items: center; gap: 10px; margin: 15px 0; width: 100%; max-width: 300px; }
+    #playerNameInput { width: 100%; padding: 10px; border-radius: 6px; border: 2px solid #c88a4a; background: #1a0f28; color: #f5e0b8; text-align: center; font-size: 16px; font-family: Georgia, serif; }
     #playerNameInput:focus { outline: none; border-color: #ffd27a; }
-
     #leaderboardSection { display: none; width: 100%; max-width: 350px; margin: 10px 0; }
     #leaderboardSection h3 { color: #ffd27a; text-align: center; margin-bottom: 10px; font-size: 18px; }
     .lb-table { width: 100%; color: #f5e0b8; font-size: 14px; border-collapse: collapse; }
@@ -242,60 +55,17 @@
     .lb-table td { padding: 6px 5px; border-bottom: 1px solid rgba(107, 74, 42, 0.3); }
     .lb-table td:last-child { text-align: right; font-weight: bold; color: #ffd27a; }
     .lb-table tr.me { color: #fff; background: rgba(255, 210, 122, 0.1); }
-
-    #controls {
-        display: flex;
-        gap: 10px;
-        margin-top: 4px;
-        flex-wrap: wrap;
-        justify-content: center;
-        transition: opacity 0.3s;
-    }
-    .btn {
-        background: linear-gradient(180deg, #6b3a1e, #4a2512);
-        color: #fff;
-        border: 2px solid #c88a4a;
-        border-radius: 8px;
-        padding: 8px 14px;
-        font-size: 14px;
-        font-weight: bold;
-        cursor: pointer;
-        box-shadow: 0 3px 0 #2a1208;
-    }
+    #controls { display: flex; gap: 10px; margin-top: 4px; flex-wrap: wrap; justify-content: center; transition: opacity 0.3s; }
+    .btn { background: linear-gradient(180deg, #6b3a1e, #4a2512); color: #fff; border: 2px solid #c88a4a; border-radius: 8px; padding: 8px 14px; font-size: 14px; font-weight: bold; cursor: pointer; box-shadow: 0 3px 0 #2a1208; }
     .btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #2a1208; }
     .btn.bomb { background: linear-gradient(180deg, #b52a1e, #7a1a10); border-color: #ff6a4a; }
     .btn.wind { background: linear-gradient(180deg, #5a3a8b, #3a255a); border-color: #aa6aff; }
-    .btn.wind.active {
-        background: linear-gradient(180deg, #aa6aff, #5a3a8b);
-        border-color: #ffd27a;
-        animation: pulse 1s infinite;
-    }
+    .btn.wind.active { background: linear-gradient(180deg, #aa6aff, #5a3a8b); border-color: #ffd27a; animation: pulse 1s infinite; }
     .btn.shield { background: linear-gradient(180deg, #1e6a8b, #104a5a); border-color: #4affff; }
     .btn.music { background: linear-gradient(180deg, #3a6a3a, #1e4a1e); border-color: #6ac06a; }
-
-    @keyframes pulse {
-        0%, 100% { box-shadow: 0 3px 0 #2a1208, 0 0 10px rgba(255, 210, 122, 0.3); }
-        50% { box-shadow: 0 3px 0 #2a1208, 0 0 20px rgba(255, 210, 122, 0.6); }
-    }
-
-    #hint {
-        font-size: 10px;
-        opacity: 0.75;
-        text-align: center;
-        background: rgba(0, 0, 0, 0.3);
-        padding: 4px 10px;
-        border-radius: 6px;
-        max-width: 95vw;
-        line-height: 1.4;
-    }
-
-    @media (max-width: 700px) {
-        .playerStats { font-size: 10px; padding: 4px 6px; min-width: 80px; }
-        .playerStats b { font-size: 14px; }
-        #hud { max-width: 100%; }
-        .modeSelector { flex-direction: column; gap: 10px; }
-        #gameArea { flex-direction: column; align-items: center; }
-    }
+    @keyframes pulse { 0%, 100% { box-shadow: 0 3px 0 #2a1208, 0 0 10px rgba(255, 210, 122, 0.3); } 50% { box-shadow: 0 3px 0 #2a1208, 0 0 20px rgba(255, 210, 122, 0.6); } }
+    #hint { font-size: 10px; opacity: 0.75; text-align: center; background: rgba(0, 0, 0, 0.3); padding: 4px 10px; border-radius: 6px; max-width: 95vw; line-height: 1.4; }
+    @media (max-width: 700px) { .playerStats { font-size: 10px; padding: 4px 6px; min-width: 80px; } .playerStats b { font-size: 14px; } #hud { max-width: 100%; } .modeSelector { flex-direction: column; gap: 10px; } #gameArea { flex-direction: column; align-items: center; } }
 </style>
 </head>
 <body>
@@ -406,20 +176,18 @@
     
     <div id="hint">
         <b>Управление:</b> ← → ↓ ↑ | Пробел (сброс) | B (бомба) | V (ветер) | F (щит)<br>
-        ⚠️ <b>Тяжелые фигуры</b> (Кресты, Г-образная) проламывают блоки при движении и при ударе!
+        ⚠️ <b>Тяжелые фигуры</b> проламывают блоки при движении влево/вправо и при ударе о дно!
     </div>
 </div>
 
-<!-- Аудио эффекты -->
 <audio id="bgMusic" loop preload="auto"><source src="assets/music.mp3" type="audio/mpeg"></audio>
 <audio id="sfxMetal" preload="auto"><source src="assets/metal_clang.mp3" type="audio/mpeg"></audio>
-<!-- НОВОЕ: Звук удара камня при приземлении тяжелой фигуры -->
 <audio id="sfxImpact" preload="auto"><source src="assets/stone_impact.mp3" type="audio/mpeg"></audio>
 
 <script type="module">
     import { joinRoom } from 'https://esm.sh/trystero@0.20.0';
 
-    const VERSION = "1.0.0.13";
+    const VERSION = "1.0.0.14";
     const APP_ID = 'brick-tetris-v' + VERSION.replace(/\./g, '');
     
     document.title = `Brick Tetris Online v${VERSION}`;
@@ -444,6 +212,7 @@
     const P2_COLORS = ['white', 'blue'];
     const P3_COLORS = ['green', 'purple'];
 
+    // === ОБНОВЛЕНО: Новые формы монстров ===
     const SHAPES = {
         I: [[[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]]],
         O: [[[1,1],[1,1]]],
@@ -453,8 +222,9 @@
         L: [[[0,0,1],[1,1,1],[0,0,0]]],
         J: [[[1,0,0],[1,1,1],[0,0,0]]],
         Cross3: [[[0,1,0],[1,1,1],[0,1,0]]],
-        BigL: [[[1,0,0,0],[1,0,0,0],[1,0,0,0],[1,1,1,1]]],
-        Cross5: [[[0,0,1,0,0],[0,0,1,0,0],[1,1,1,1,1],[0,0,1,0,0],[0,0,1,0,0]]]
+        Cross5: [[[0,0,1,0,0],[0,0,1,0,0],[1,1,1,1,1],[0,0,1,0,0],[0,0,1,0,0]]],
+        Cross3x5: [[[0,1,0],[0,1,0],[1,1,1],[0,1,0],[0,1,0]]],
+        Block5x5: [[[1,1,1,1,1],[1,1,1,1,1],[1,1,1,1,1],[1,1,1,1,1],[1,1,1,1,1]]]
     };
     
     for(const k in SHAPES){
@@ -482,7 +252,7 @@
     let windActive = false;
     let windTimer = 0;
     let windAnimation = null;
-    let impactAnim = 0; // НОВОЕ: Для визуальной вспышки при ударе
+    let impactAnim = 0;
 
     function updateUIForMode() {
         const mode = document.querySelector('input[name="gameMode"]:checked').value;
@@ -713,7 +483,7 @@
 
     function collide(piece, dx=0, dy=0, shape=null, checkOthers=true) {
         const s = shape || piece.shape;
-        const isHeavy = ['Cross3', 'BigL', 'Cross5'].includes(piece.type);
+        const isHeavy = ['Cross3', 'Cross5', 'Cross3x5', 'Block5x5'].includes(piece.type);
         
         for(let y=0; y<s.length; y++){
             for(let x=0; x<s[y].length; x++){
@@ -723,7 +493,6 @@
                 
                 if(nx < 0 || nx >= COLS || ny >= ROWS) return true;
                 
-                // Тяжелые фигуры игнорируют блоки на поле, их держит только дно/стены
                 if(!isHeavy && ny >= 0 && game.board[ny][nx]) return true;
                 
                 if(checkOthers && PLAYER_COUNT > 1) {
@@ -748,14 +517,16 @@
         return false;
     }
 
+    // === ОБНОВЛЕНО: Разрушение только при движении влево/вправо ===
     function applyCrush(piece, dx, dy) {
-        const heavyTypes = ['Cross3', 'BigL', 'Cross5'];
+        const heavyTypes = ['Cross3', 'Cross5', 'Cross3x5', 'Block5x5'];
         if (!heavyTypes.includes(piece.type)) return;
 
         let crushDepth = 0;
         if (piece.type === 'Cross3') crushDepth = 5;
-        else if (piece.type === 'BigL') crushDepth = 8;
         else if (piece.type === 'Cross5') crushDepth = 10;
+        else if (piece.type === 'Cross3x5') crushDepth = 7;
+        else if (piece.type === 'Block5x5') crushDepth = 12;
 
         for (let y = 0; y < piece.shape.length; y++) {
             for (let x = 0; x < piece.shape[y].length; x++) {
@@ -845,6 +616,7 @@
         }
     }
 
+    // === ОБНОВЛЕНО: Разрушение только при движении влево/вправо ===
     function tryMove(player, dx, dy) {
         const piece = game['cur'+player];
         if(!piece) return false;
@@ -866,7 +638,10 @@
             piece.x += dx; 
             piece.y += dy; 
             game['lockStart'+player] = 0;
-            applyCrush(piece, dx, dy);
+            // Разрушение только при движении влево/вправо
+            if (dx !== 0) {
+                applyCrush(piece, dx, dy);
+            }
             return true; 
         }
         return false;
@@ -892,6 +667,7 @@
         return false;
     }
 
+    // === ОБНОВЛЕНО: Убрано разрушение при hard drop ===
     function hardDrop(player) {
         const piece = game['cur'+player];
         if(!piece) return;
@@ -905,7 +681,6 @@
         let dropped = 0;
         while(!collide(piece, 0, 1, null, true)){ 
             piece.y++; 
-            applyCrush(piece, 0, 1);
             dropped++; 
         }
         game['score'+player] += dropped * 2;
@@ -914,16 +689,13 @@
         if(collide(game['cur'+player], 0, 0, null, true)) game['gameOver'+player] = true;
     }
 
-    // === ИЗМЕНЕНО: Трансформация и удар происходят ЗДЕСЬ, в момент фиксации ===
+    // === ОБНОВЛЕНО: Разрушение происходит ЗДЕСЬ, в момент приземления ===
     function merge(piece, player) {
-        const isHeavy = ['Cross3', 'BigL', 'Cross5'].includes(piece.type);
+        const isHeavy = ['Cross3', 'Cross5', 'Cross3x5', 'Block5x5'].includes(piece.type);
         
         if (isHeavy) {
-            // 1. Звук удара камня в момент приземления
             playSound('sfxImpact');
-            // 2. Визуальная вспышка на 10 кадров
             impactAnim = 10;
-            // 3. Финальный "взрыв" при приземлении для максимального эффекта
             applyCrush(piece, 0, 0);
         }
 
@@ -1069,6 +841,7 @@
         else handleCommand(player, action);
     }
 
+    // === ОБНОВЛЕНО: Убрано разрушение при нажатии вниз ===
     function handleCommand(player, action) {
         if(!game || game['gameOver'+player]) return;
         if(action === 'left') tryMove(player, -1, 0);
@@ -1077,7 +850,6 @@
             const piece = game['cur'+player];
             if(piece && !collide(piece, 0, 1, null, true)) { 
                 piece.y++; 
-                applyCrush(piece, 0, 1);
                 game['score'+player]++; 
                 game['lockStart'+player] = 0;
             }
@@ -1332,7 +1104,6 @@
         const w = canvas.width, h = canvas.height;
         ctx.fillStyle = '#1a1008'; ctx.fillRect(0,0,w,h);
         
-        // НОВОЕ: Визуальная вспышка при ударе тяжелой фигуры
         if (impactAnim > 0) {
             ctx.fillStyle = `rgba(255, 255, 255, ${impactAnim / 15})`;
             ctx.fillRect(0, 0, w, h);
@@ -1496,6 +1267,7 @@
         ctx.strokeRect(px+0.5,py+0.5,s-1,s-1);
     }
 
+    // === ОБНОВЛЕНО: Убрано разрушение при автоматическом падении ===
     function gameLoop(ts) {
         if(!lastTime) lastTime = ts;
         const dt = ts - lastTime; lastTime = ts;
@@ -1543,7 +1315,7 @@
                     if(game['lockStart'+p] === 0) game['lockStart'+p] = lastTime;
                     if(lastTime - game['lockStart'+p] >= 1000) {
                         if(piece.type === 'anvil') smashAnvil(p, false);
-                        else merge(piece, p); // ЗВУК И ВСПЫШКА ПРОИЗОЙДУТ ЗДЕСЬ
+                        else merge(piece, p);
                         game['lockStart'+p] = 0;
                         if(collide(game['cur'+p], 0, 0, null, true)) game['gameOver'+p] = true;
                     }
@@ -1561,7 +1333,6 @@
                     const piece = game['cur'+p];
                     if(piece && !collide(piece, 0, 1, null, true)) {
                         piece.y++;
-                        applyCrush(piece, 0, 1);
                     }
                 }
             }
