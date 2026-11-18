@@ -187,7 +187,7 @@
 <script type="module">
     import { joinRoom } from 'https://esm.sh/trystero@0.20.0';
 
-    const VERSION = "1.0.0.17";
+    const VERSION = "1.0.0.18";
     const APP_ID = 'brick-tetris-v' + VERSION.replace(/\./g, '');
     
     document.title = `Brick Tetris Online v${VERSION}`;
@@ -438,9 +438,7 @@
         return g;
     }
 
-    // === ИСПРАВЛЕНО: Бонусные палки имеют приоритет над excludeType ===
     function spawnPiece(player, excludeType = null, boardRef = null) {
-        // Если есть бонусные палки — ВСЕГДА спавним I-фигуру
         if (game && game['bonusI' + player] > 0) {
             game['bonusI' + player]--;
             const sectionWidth = Math.floor(COLS / PLAYER_COUNT);
@@ -489,7 +487,7 @@
         return {...piece, rot:newRot, shape:SHAPES[piece.type][newRot]};
     }
 
-    // === ИСПРАВЛЕНО: Block5x5 летит сквозь блоки, останавливается на дне ===
+    // === ИСПРАВЛЕНО: Block5x5 останавливается за 7 рядов до дна ===
     function collide(piece, dx=0, dy=0, shape=null, checkOthers=true) {
         const s = shape || piece.shape;
         const isHeavy = piece.type === 'Block5x5';
@@ -502,8 +500,14 @@
                 
                 if(nx < 0 || nx >= COLS || ny >= ROWS) return true;
                 
-                // Для тяжёлой фигуры — игнорируем блоки на поле, останавливаемся только на дне
                 if(isHeavy) {
+                    // Проверяем только для нижней строки фигуры
+                    if (y === s.length - 1) {
+                        let rowsToBottom = ROWS - ny - 1;
+                        // Останавливаемся, когда до дна осталось 7 рядов или меньше
+                        if (rowsToBottom <= 7 && dy > 0) return true;
+                    }
+                    
                     if(checkOthers && PLAYER_COUNT > 1) {
                         for(let p=1; p<=PLAYER_COUNT; p++){
                             if(p === piece.player) continue;
@@ -521,7 +525,7 @@
                             }
                         }
                     }
-                    continue; // Игнорируем game.board для тяжёлых фигур
+                    continue;
                 }
                 
                 if(ny >= 0 && game.board[ny][nx]) return true;
@@ -548,7 +552,7 @@
         return false;
     }
 
-    // === ИСПРАВЛЕНО: Разрушение на 7 рядов вниз, палки спавнятся сразу ===
+    // === ИСПРАВЛЕНО: Создаём I-палку как cur, а не используем next ===
     function drillAndExplode(player) {
         const piece = game['cur'+player];
         if (!piece || piece.type !== 'Block5x5') return;
@@ -556,7 +560,7 @@
         playSound('sfxImpact');
         impactAnim = 15;
 
-        // Разрушаем блоки в зоне 5x7 ПОД фигурой (глубже, чтобы захватить блоки)
+        // Разрушаем блоки в зоне 5x7 ПОД фигурой
         for (let y = piece.y + piece.shape.length; y < piece.y + piece.shape.length + 7; y++) {
             for (let x = piece.x; x < piece.x + piece.shape[0].length; x++) {
                 if (y >= 0 && y < ROWS && x >= 0 && x < COLS) {
@@ -565,7 +569,6 @@
             }
         }
 
-        // Анимация взрыва
         destroyAnim = { 
             type: 'fire', 
             x: piece.x, 
@@ -576,12 +579,19 @@
             player: player 
         };
 
-        // === ИСПРАВЛЕНО: Устанавливаем bonusI = 5, и spawnPiece создаст I-палки ===
+        // Устанавливаем бонус: 5 палок
         game['bonusI' + player] = 5;
         
-        // Удаляем Block5x5 и спавним следующую фигуру (которая будет I-палкой из-за bonusI)
-        game['cur'+player] = game['next'+player];
-        game['next'+player] = spawnPiece(player, game['cur'+player]?.type, game.board);
+        // === ИСПРАВЛЕНО: Создаём I-палку как текущую фигуру ===
+        const sectionWidth = Math.floor(COLS / PLAYER_COUNT);
+        const x = (player - 1) * sectionWidth + Math.floor((sectionWidth - 4) / 2);
+        const colors = player === 1 ? P1_COLORS : player === 2 ? P2_COLORS : P3_COLORS;
+        const colorName = colors[Math.floor(Math.random()*colors.length)];
+        game['cur'+player] = {type: 'I', rot:0, shape:SHAPES['I'][0], x, y:0, color:BRICK_COLORS[colorName], player};
+        
+        // Следующая фигура тоже I-палка (из-за bonusI = 5, spawnPiece создаст I и уменьшит до 4)
+        game['next'+player] = spawnPiece(player, null, game.board);
+        
         game['lockStart'+player] = 0;
     }
 
